@@ -34,6 +34,9 @@ jobs:
       - name: Sync dependencies
         run: uv sync --all-groups
 
+      - name: Run pre-commit hooks (baseline)
+        run: just prek --skip lint-code --skip lint-docs --skip typecheck --skip format
+
       - name: Run linters and type checks
         run: just lint
 
