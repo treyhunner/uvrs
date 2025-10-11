@@ -5,13 +5,13 @@ from __future__ import annotations
 import runpy
 import subprocess
 import sys
-from subprocess import CompletedProcess
-from types import SimpleNamespace
-from typing import Any, cast
+import textwrap
+from pathlib import Path
 
 import click
 import pytest
 from click.testing import CliRunner, Result
+from pytest_mock import MockerFixture
 
 import uvrs
 from uvrs import cli, main, run_script
@@ -26,7 +26,7 @@ def run_uvrs(*args: str, check: bool = True) -> Result:
     return result
 
 
-def run_uvrs_subprocess(*args: str, check: bool = True) -> CompletedProcess[str]:
+def run_uvrs_subprocess(*args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
     """Helper to run uvrs command as subprocess (for integration tests)."""
     cmd = [sys.executable, "-m", "uvrs"] + list(args)
     result = subprocess.run(cmd, capture_output=True, text=True)
@@ -38,7 +38,7 @@ def run_uvrs_subprocess(*args: str, check: bool = True) -> CompletedProcess[str]
 class TestInit:
     """Tests for uvrs init command."""
 
-    def test_init_creates_script(self, tmp_path):
+    def test_init_creates_script(self, tmp_path: Path) -> None:
         """Test that init creates a new script with shebang."""
         script_path = tmp_path / "test-script.py"
 
@@ -55,7 +55,7 @@ class TestInit:
         # Check it's executable
         assert script_path.stat().st_mode & 0o111
 
-    def test_init_with_python_version(self, tmp_path):
+    def test_init_with_python_version(self, tmp_path: Path) -> None:
         """Test that init respects --python flag."""
         script_path = tmp_path / "test-script.py"
 
@@ -65,7 +65,7 @@ class TestInit:
         content = script_path.read_text()
         assert 'requires-python = ">=3.12"' in content
 
-    def test_init_existing_file_fails(self, tmp_path):
+    def test_init_existing_file_fails(self, tmp_path: Path) -> None:
         """Test that init fails on existing file with helpful message."""
         script_path = tmp_path / "existing.py"
         script_path.write_text("# existing file")
@@ -76,7 +76,7 @@ class TestInit:
         assert "already exists" in result.output
         assert "uvrs fix" in result.output
 
-    def test_init_creates_pep723_metadata(self, tmp_path):
+    def test_init_creates_pep723_metadata(self, tmp_path: Path) -> None:
         """Test that init creates proper PEP 723 script metadata."""
         script_path = tmp_path / "test-script.py"
 
@@ -87,47 +87,58 @@ class TestInit:
         assert "# dependencies = []" in content
         assert "# ///" in content
 
-    def test_init_handles_uv_failure(self, tmp_path, monkeypatch):
+    def test_init_handles_uv_failure(self, tmp_path: Path, mocker: MockerFixture) -> None:
         """uv init failure should surface an error and exit with non-zero code."""
         script_path = tmp_path / "script.py"
 
-        fake_completed_process = SimpleNamespace(returncode=1, stderr="boom")
-        monkeypatch.setattr(
-            uvrs,
-            "subprocess",
-            SimpleNamespace(run=lambda *a, **k: fake_completed_process),
+        fake_completed_process = subprocess.CompletedProcess(
+            args=["uv", "init"],
+            returncode=1,
+            stderr="boom",
         )
+        mock_run = mocker.patch("uvrs.subprocess.run", return_value=fake_completed_process)
 
         result = run_uvrs("init", str(script_path), check=False)
 
         assert result.exit_code != 0
         assert "Error running uv init" in result.output
+        mock_run.assert_called_once()
 
-    def test_init_reports_missing_output(self, tmp_path, monkeypatch):
+    def test_init_reports_missing_output(self, tmp_path: Path, mocker: MockerFixture) -> None:
         """If uv init succeeds but no file created, show an error."""
         script_path = tmp_path / "script.py"
 
-        fake_completed_process = SimpleNamespace(returncode=0, stderr="", stdout="")
-        monkeypatch.setattr(
-            uvrs,
-            "subprocess",
-            SimpleNamespace(run=lambda *a, **k: fake_completed_process),
+        fake_completed_process = subprocess.CompletedProcess(
+            args=["uv", "init"],
+            returncode=0,
+            stderr="",
+            stdout="",
         )
+        mock_run = mocker.patch("uvrs.subprocess.run", return_value=fake_completed_process)
 
         result = run_uvrs("init", str(script_path), check=False)
 
         assert result.exit_code != 0
         assert "did not create" in result.output
+        mock_run.assert_called_once()
 
 
 class TestFix:
     """Tests for uvrs fix command."""
 
-    def test_fix_adds_shebang(self, tmp_path):
+    def test_fix_adds_shebang(self, tmp_path: Path) -> None:
         """Test that fix adds shebang to file without one."""
         script_path = tmp_path / "no-shebang.py"
-        original_content = '# /// script\n# dependencies = []\n# ///\nprint("hello")'
-        script_path.write_text(original_content)
+        script_path.write_text(
+            textwrap.dedent(
+                """
+                # /// script
+                # dependencies = []
+                # ///
+                print("hello")
+                """
+            ).strip()
+        )
 
         result = run_uvrs("fix", str(script_path))
 
@@ -136,13 +147,20 @@ class TestFix:
         assert content.startswith("#!/usr/bin/env uvrs\n")
         assert 'print("hello")' in content
 
-    def test_fix_replaces_existing_shebang(self, tmp_path):
+    def test_fix_replaces_existing_shebang(self, tmp_path: Path) -> None:
         """Test that fix replaces existing shebang."""
         script_path = tmp_path / "old-shebang.py"
-        original_content = (
-            '#!/usr/bin/env python3\n# /// script\n# dependencies = []\n# ///\nprint("hello")'
+        script_path.write_text(
+            textwrap.dedent(
+                """
+                #!/usr/bin/env python3
+                # /// script
+                # dependencies = []
+                # ///
+                print("hello")
+                """
+            ).strip()
         )
-        script_path.write_text(original_content)
 
         result = run_uvrs("fix", str(script_path))
 
@@ -152,11 +170,17 @@ class TestFix:
         assert lines[0] == "#!/usr/bin/env uvrs"
         assert "#!/usr/bin/env python3" not in content
 
-    def test_fix_replaces_uv_run_shebang(self, tmp_path):
+    def test_fix_replaces_uv_run_shebang(self, tmp_path: Path) -> None:
         """Test that fix replaces uv run shebang."""
         script_path = tmp_path / "uv-shebang.py"
-        original_content = '#!/usr/bin/env -S uv run --script\nprint("hello")'
-        script_path.write_text(original_content)
+        script_path.write_text(
+            textwrap.dedent(
+                """
+                #!/usr/bin/env -S uv run --script
+                print("hello")
+                """
+            ).strip()
+        )
 
         result = run_uvrs("fix", str(script_path))
 
@@ -165,7 +189,7 @@ class TestFix:
         assert content.startswith("#!/usr/bin/env uvrs\n")
         assert "uv run" not in content.split("\n")[0]
 
-    def test_fix_makes_executable(self, tmp_path):
+    def test_fix_makes_executable(self, tmp_path: Path) -> None:
         """Test that fix makes file executable."""
         script_path = tmp_path / "not-executable.py"
         script_path.write_text("print('hello')")
@@ -175,7 +199,7 @@ class TestFix:
 
         assert script_path.stat().st_mode & 0o111
 
-    def test_fix_on_nonexistent_file_fails(self, tmp_path):
+    def test_fix_on_nonexistent_file_fails(self, tmp_path: Path) -> None:
         """Test that fix fails on nonexistent file."""
         script_path = tmp_path / "nonexistent.py"
 
@@ -183,7 +207,7 @@ class TestFix:
 
         assert result.exit_code != 0
 
-    def test_fix_empty_file(self, tmp_path):
+    def test_fix_empty_file(self, tmp_path: Path) -> None:
         """Test that fix handles empty files."""
         script_path = tmp_path / "empty.py"
         script_path.write_text("")
@@ -194,7 +218,7 @@ class TestFix:
         content = script_path.read_text()
         assert content.startswith("#!/usr/bin/env uvrs\n")
 
-    def test_fix_fails_for_directory(self, tmp_path):
+    def test_fix_fails_for_directory(self, tmp_path: Path) -> None:
         """fix should error when given a directory path."""
         directory_path = tmp_path / "somedir"
         directory_path.mkdir()
@@ -208,7 +232,7 @@ class TestFix:
 class TestAddRemove:
     """Tests for uvrs add and remove commands."""
 
-    def test_add_dependency(self, tmp_path):
+    def test_add_dependency(self, tmp_path: Path) -> None:
         """Test that add command adds a dependency."""
         script_path = tmp_path / "script.py"
         script_path.write_text(
@@ -221,7 +245,7 @@ class TestAddRemove:
         content = script_path.read_text()
         assert "rich" in content
 
-    def test_remove_dependency(self, tmp_path):
+    def test_remove_dependency(self, tmp_path: Path) -> None:
         """Test that remove command removes a dependency."""
         script_path = tmp_path / "script.py"
         script_path.write_text(
@@ -238,7 +262,7 @@ class TestAddRemove:
 class TestShebangMode:
     """Tests for shebang mode execution (using subprocess for realism)."""
 
-    def test_run_script(self, tmp_path):
+    def test_run_script(self, tmp_path: Path) -> None:
         """Test that uvrs can run a script."""
         script_path = tmp_path / "script.py"
         script_path.write_text(
@@ -254,7 +278,7 @@ class TestShebangMode:
         assert result.returncode == 0
         assert "Hello from script" in result.stdout
 
-    def test_run_script_with_arguments(self, tmp_path):
+    def test_run_script_with_arguments(self, tmp_path: Path) -> None:
         """Test that script arguments are passed through."""
         script_path = tmp_path / "script.py"
         script_path.write_text(
@@ -271,7 +295,7 @@ class TestShebangMode:
         assert result.returncode == 0
         assert "arg1 arg2 --flag" in result.stdout
 
-    def test_run_nonexistent_script_fails(self, tmp_path):
+    def test_run_nonexistent_script_fails(self, tmp_path: Path) -> None:
         """Test that running nonexistent script fails."""
         script_path = tmp_path / "nonexistent.py"
 
@@ -280,7 +304,7 @@ class TestShebangMode:
         assert result.returncode != 0
         assert "not found" in result.stderr.lower()
 
-    def test_no_recursive_invocation(self, tmp_path):
+    def test_no_recursive_invocation(self, tmp_path: Path) -> None:
         """Test that scripts with uvrs shebang don't cause recursion."""
         script_path = tmp_path / "script.py"
         script_path.write_text(
@@ -324,7 +348,7 @@ class TestEdgeCases:
         assert "init" in result.output
         assert "PATH" in result.output
 
-    def test_script_named_like_command(self, tmp_path):
+    def test_script_named_like_command(self, tmp_path: Path) -> None:
         """Test that we can run a script named like a command."""
         script_path = tmp_path / "init"
         script_path.write_text(
@@ -349,7 +373,7 @@ class TestEdgeCases:
         assert "uvrs" in result.output
         assert "Commands:" in result.output
 
-    def test_init_command_takes_precedence(self, tmp_path):
+    def test_init_command_takes_precedence(self, tmp_path: Path) -> None:
         """Test that 'uvrs init' invokes command, not a file named 'init'."""
         # Even if a file named 'init' exists in current dir,
         # 'uvrs init' without args should show command help
@@ -362,7 +386,7 @@ class TestEdgeCases:
 class TestIntegration:
     """Integration tests for complete workflows."""
 
-    def test_full_workflow(self, tmp_path):
+    def test_full_workflow(self, tmp_path: Path) -> None:
         """Test complete workflow: init, add dependency, run."""
         script_path = tmp_path / "my-script.py"
 
@@ -384,7 +408,7 @@ class TestIntegration:
         assert run_result.returncode == 0
         assert "Args:" in run_result.stdout
 
-    def test_init_and_fix_workflow(self, tmp_path):
+    def test_init_and_fix_workflow(self, tmp_path: Path) -> None:
         """Test that fix can update a script created elsewhere."""
         script_path = tmp_path / "script.py"
 
@@ -413,7 +437,7 @@ class TestRunScript:
 
         assert "No script path provided" in str(exc.value)
 
-    def test_run_script_missing_file(self, tmp_path):
+    def test_run_script_missing_file(self, tmp_path: Path) -> None:
         """run_script should error if the script path does not exist."""
         missing_path = tmp_path / "missing.py"
 
@@ -422,120 +446,92 @@ class TestRunScript:
 
         assert "Script not found" in str(exc.value)
 
-    def test_run_script_execvp_invocation(self, tmp_path, monkeypatch):
+    def test_run_script_execvp_invocation(self, tmp_path: Path, mocker: MockerFixture) -> None:
         """run_script should delegate to os.execvp with the correct arguments."""
         script_path = tmp_path / "script.py"
         script_path.write_text("print('hi')\n")
 
-        captured: dict[str, list[str] | str] = {}
-
-        def fake_execvp(cmd: str, args: list[str]) -> None:
-            captured["cmd"] = cmd
-            captured["args"] = args
-            raise SystemExit(0)
-
-        monkeypatch.setattr(uvrs, "os", cast(Any, SimpleNamespace(execvp=fake_execvp)))
+        execvp_mock = mocker.patch("uvrs.os.execvp", side_effect=SystemExit(0))
 
         with pytest.raises(SystemExit) as exc:
             run_script([str(script_path), "arg1", "arg2"])
 
         assert exc.value.code == 0
-        assert captured["cmd"] == "uv"
-        assert captured["args"] == ["uv", "run", "--script", str(script_path), "arg1", "arg2"]
+        execvp_mock.assert_called_once_with(
+            "uv",
+            ["uv", "run", "--script", str(script_path), "arg1", "arg2"],
+        )
 
 
 class TestMain:
     """Direct tests for the top-level main dispatcher."""
 
-    def test_main_no_args_invokes_cli(self, monkeypatch):
+    def test_main_no_args_invokes_cli(self, mocker: MockerFixture) -> None:
         """No arguments should call the Click CLI entry point."""
-        calls: list[str] = []
-
-        monkeypatch.setattr(sys, "argv", ["uvrs"])
-        monkeypatch.setattr(uvrs.cli, "main", cast(Any, lambda *a, **k: calls.append("cli")))
+        mocker.patch.object(sys, "argv", ["uvrs"])
+        mock_main = mocker.patch.object(uvrs.cli, "main")
 
         main()
 
-        assert calls == ["cli"]
+        mock_main.assert_called_once_with()
 
-    def test_main_command_invokes_cli(self, monkeypatch):
+    def test_main_command_invokes_cli(self, mocker: MockerFixture) -> None:
         """Known subcommands should dispatch to Click CLI."""
-        calls: list[str] = []
 
-        monkeypatch.setattr(sys, "argv", ["uvrs", "init"])
-        monkeypatch.setattr(uvrs.cli, "main", cast(Any, lambda *a, **k: calls.append("cli")))
-        monkeypatch.setattr(uvrs.cli, "get_command", cast(Any, lambda _ctx, name: object()))
+        mocker.patch.object(sys, "argv", ["uvrs", "init"])
+        mock_main = mocker.patch.object(uvrs.cli, "main")
+        mock_get_command = mocker.patch.object(uvrs.cli, "get_command", return_value=object())
 
         main()
 
-        assert calls == ["cli"]
+        mock_main.assert_called_once_with()
+        mock_get_command.assert_called()
 
-    def test_main_flag_invokes_cli(self, monkeypatch):
+    def test_main_flag_invokes_cli(self, mocker: MockerFixture) -> None:
         """Flags should be forwarded to Click CLI."""
-        calls: list[str] = []
 
-        monkeypatch.setattr(sys, "argv", ["uvrs", "--help"])
-        monkeypatch.setattr(uvrs.cli, "main", cast(Any, lambda *a, **k: calls.append("cli")))
+        mocker.patch.object(sys, "argv", ["uvrs", "--help"])
+        mock_main = mocker.patch.object(uvrs.cli, "main")
 
         main()
 
-        assert calls == ["cli"]
+        mock_main.assert_called_once_with()
 
-    def test_main_script_invokes_run_script(self, tmp_path, monkeypatch):
+    def test_main_script_invokes_run_script(self, tmp_path: Path, mocker: MockerFixture) -> None:
         """A non-command argument should invoke run_script with remaining args."""
         script_path = tmp_path / "script.py"
         script_path.write_text("print('hello')\n")
 
-        monkeypatch.setattr(sys, "argv", ["uvrs", str(script_path), "--flag"])
-
-        captured: list[list[str]] = []
-
-        calls: list[str] = []
-
-        def fake_run_script(args: list[str]) -> None:
-            captured.append(args)
-
-        monkeypatch.setattr(uvrs, "run_script", cast(Any, fake_run_script))
-        monkeypatch.setattr(uvrs.cli, "main", cast(Any, lambda *a, **k: calls.append("cli")))
+        mocker.patch.object(sys, "argv", ["uvrs", str(script_path), "--flag"])
+        mocker.patch.object(uvrs.cli, "get_command", return_value=None)
+        mock_run_script = mocker.patch("uvrs.run_script")
+        mock_main = mocker.patch.object(uvrs.cli, "main")
 
         main()
 
-        assert captured == [[str(script_path), "--flag"]]
-        assert calls == []
+        mock_run_script.assert_called_once_with([str(script_path), "--flag"])
+        mock_main.assert_not_called()
 
-    def test_main_handles_cli_without_commands(self, monkeypatch):
+    def test_main_handles_cli_without_commands(self, mocker: MockerFixture) -> None:
         """Fallback to empty command set when cli has no commands attribute."""
-        monkeypatch.setattr(sys, "argv", ["uvrs", "script.py"])
-
-        captured: list[list[str]] = []
-
-        class DummyCLI:
-            allow_extra_args = False
-            allow_interspersed_args = True
-            ignore_unknown_options = False
-            commands: dict[str, Any] = {}
-
-            def main(self, *args: object, **kwargs: object) -> None:  # pragma: no cover
-                raise AssertionError("cli should not be invoked")
-
-            def get_command(self, _ctx: object, _name: str) -> None:
-                return None
-
-        monkeypatch.setattr(uvrs, "cli", cast(Any, DummyCLI()))
-        monkeypatch.setattr(uvrs, "run_script", cast(Any, lambda args: captured.append(args)))
+        mocker.patch.object(sys, "argv", ["uvrs", "script.py"])
+        mocker.patch.object(uvrs.cli, "get_command", return_value=None)
+        mock_run_script = mocker.patch("uvrs.run_script")
+        mock_main = mocker.patch.object(uvrs.cli, "main")
 
         main()
 
-        assert captured == [["script.py"]]
+        mock_run_script.assert_called_once_with(["script.py"])
+        mock_main.assert_not_called()
 
-    def test_main_shows_run_script_error(self, monkeypatch, capsys):
+    def test_main_shows_run_script_error(
+        self, mocker: MockerFixture, capsys: pytest.CaptureFixture[str]
+    ) -> None:
         """Errors from run_script should be rendered cleanly and exit with code 1."""
-        monkeypatch.setattr(sys, "argv", ["uvrs", "script.py"])
+        mocker.patch.object(sys, "argv", ["uvrs", "script.py"])
+        mocker.patch.object(uvrs.cli, "get_command", return_value=None)
 
-        def boom(_args: list[str]) -> None:
-            raise click.ClickException("boom")
-
-        monkeypatch.setattr(uvrs, "run_script", boom)
+        mocker.patch("uvrs.run_script", side_effect=click.ClickException("boom"))
 
         with pytest.raises(SystemExit) as exc:
             main()
@@ -548,15 +544,10 @@ class TestMain:
 class TestModuleEntry:
     """Tests for running the package as ``python -m uvrs``."""
 
-    def test_dunder_main_invokes_main(self, monkeypatch):
+    def test_dunder_main_invokes_main(self, mocker: MockerFixture) -> None:
         """Running the module should call uvrs.main()."""
-        calls: list[str] = []
-
-        def fake_main() -> None:
-            calls.append("main")
-
-        monkeypatch.setattr(uvrs, "main", fake_main)
+        mock_main = mocker.patch.object(uvrs, "main")
 
         runpy.run_module("uvrs.__main__", run_name="__main__")
 
-        assert calls == ["main"]
+        mock_main.assert_called_once_with()
