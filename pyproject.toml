@@ -23,7 +23,7 @@ build-backend = "uv_build"
 
 [dependency-groups]
 dev = [
-    "mypy>=1.18.2",
+    "ty>=0.0.1a22",
     "pytest-mock>=3.14.0",
     "prek>=0.2.5",
     "pytest>=8.4.2",
@@ -57,15 +57,14 @@ ignore = [
 quote-style = "double"
 indent-style = "space"
 
-[tool.mypy]
-python_version = "3.10"
-strict = true
-mypy_path = ["src"]
+[tool.ty.environment]
+python-version = "3.10"
 
-[[tool.mypy.overrides]]
-module = "tests.*"
-allow_untyped_defs = true
-allow_untyped_calls = true
+[[tool.ty.overrides]]
+include = ["tests/**", "**/test_*.py"]
+
+[tool.ty.overrides.rules]
+unresolved-attribute = "warn"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

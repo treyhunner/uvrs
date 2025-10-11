@@ -456,7 +456,7 @@ class TestRunScript:
         with pytest.raises(SystemExit) as exc:
             run_script([str(script_path), "arg1", "arg2"])
 
-        assert exc.value.code == 0
+        assert exc.value.code == 0  # type: ignore[attr-defined]
         execvp_mock.assert_called_once_with(
             "uv",
             ["uv", "run", "--script", str(script_path), "arg1", "arg2"],
@@ -536,7 +536,7 @@ class TestMain:
         with pytest.raises(SystemExit) as exc:
             main()
 
-        assert exc.value.code == 1
+        assert exc.value.code == 1  # type: ignore[attr-defined]
         err = capsys.readouterr().err
         assert "Error: boom" in err
 

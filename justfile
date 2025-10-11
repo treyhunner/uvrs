@@ -24,9 +24,9 @@ _lint-code:
     uv run ruff check
     uv run ruff format --check
 
-# Type check with mypy
+# Type check with ty
 _typecheck:
-    uv run mypy .
+    uv run ty check .
 
 _lint-docs:
     uv run rumdl check
