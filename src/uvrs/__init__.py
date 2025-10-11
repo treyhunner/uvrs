@@ -7,7 +7,6 @@ from pathlib import Path
 
 import click
 
-
 SHEBANG_LINE = "#!/usr/bin/env uvrs"
 
 
@@ -166,13 +165,13 @@ def remove(path: str, dependency: str) -> None:
 def main() -> None:
     """Main entry point for uvrs CLI."""
     # Check if we're in shebang mode (first arg is not a known subcommand)
-    known_commands = {'init', 'fix', 'add', 'remove'}
+    known_commands = {"init", "fix", "add", "remove"}
 
     if len(sys.argv) > 1:
         first_arg = sys.argv[1]
 
         # If it's a flag (starts with -) or a known command, use Click
-        if first_arg.startswith('-') or first_arg in known_commands:
+        if first_arg.startswith("-") or first_arg in known_commands:
             cli()
         else:
             # Shebang mode: first argument is the script path

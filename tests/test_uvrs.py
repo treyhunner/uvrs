@@ -2,11 +2,7 @@
 
 import subprocess
 import sys
-from pathlib import Path
-from unittest.mock import patch
-from io import StringIO
 
-import pytest
 from click.testing import CliRunner
 
 from uvrs import cli
@@ -58,7 +54,7 @@ class TestInit:
 
         assert result.exit_code == 0
         content = script_path.read_text()
-        assert "requires-python = \">=3.12\"" in content
+        assert 'requires-python = ">=3.12"' in content
 
     def test_init_existing_file_fails(self, tmp_path):
         """Test that init fails on existing file with helpful message."""
@@ -102,7 +98,9 @@ class TestFix:
     def test_fix_replaces_existing_shebang(self, tmp_path):
         """Test that fix replaces existing shebang."""
         script_path = tmp_path / "old-shebang.py"
-        original_content = '#!/usr/bin/env python3\n# /// script\n# dependencies = []\n# ///\nprint("hello")'
+        original_content = (
+            '#!/usr/bin/env python3\n# /// script\n# dependencies = []\n# ///\nprint("hello")'
+        )
         script_path.write_text(original_content)
 
         result = run_uvrs("fix", str(script_path))
@@ -163,11 +161,7 @@ class TestAddRemove:
         """Test that add command adds a dependency."""
         script_path = tmp_path / "script.py"
         script_path.write_text(
-            "#!/usr/bin/env uvrs\n"
-            "# /// script\n"
-            "# dependencies = []\n"
-            "# ///\n"
-            'print("hello")'
+            '#!/usr/bin/env uvrs\n# /// script\n# dependencies = []\n# ///\nprint("hello")'
         )
 
         result = run_uvrs("add", str(script_path), "rich")
@@ -180,11 +174,7 @@ class TestAddRemove:
         """Test that remove command removes a dependency."""
         script_path = tmp_path / "script.py"
         script_path.write_text(
-            "#!/usr/bin/env uvrs\n"
-            "# /// script\n"
-            '# dependencies = ["rich"]\n'
-            "# ///\n"
-            'print("hello")'
+            '#!/usr/bin/env uvrs\n# /// script\n# dependencies = ["rich"]\n# ///\nprint("hello")'
         )
 
         result = run_uvrs("remove", str(script_path), "rich")
@@ -243,11 +233,7 @@ class TestShebangMode:
         """Test that scripts with uvrs shebang don't cause recursion."""
         script_path = tmp_path / "script.py"
         script_path.write_text(
-            "#!/usr/bin/env uvrs\n"
-            "# /// script\n"
-            "# dependencies = []\n"
-            "# ///\n"
-            'print("No recursion!")'
+            '#!/usr/bin/env uvrs\n# /// script\n# dependencies = []\n# ///\nprint("No recursion!")'
         )
 
         # This should not hang or cause recursion error
@@ -328,8 +314,7 @@ class TestIntegration:
         content = script_path.read_text()
         # Replace the main function
         new_content = content.replace(
-            'print("Hello from my-script.py!")',
-            'import sys; print(f"Args: {sys.argv[1:]}")'
+            'print("Hello from my-script.py!")', 'import sys; print(f"Args: {sys.argv[1:]}")'
         )
         script_path.write_text(new_content)
 
@@ -344,11 +329,7 @@ class TestIntegration:
 
         # Create a script without uvrs (simulating manual creation)
         script_path.write_text(
-            "#!/usr/bin/env python3\n"
-            "# /// script\n"
-            "# dependencies = []\n"
-            "# ///\n"
-            'print("hello")'
+            '#!/usr/bin/env python3\n# /// script\n# dependencies = []\n# ///\nprint("hello")'
         )
 
         # Use fix to update it
