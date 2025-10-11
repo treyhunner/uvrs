@@ -10,25 +10,28 @@ repos:
       - id: check-merge-conflict
       - id: mixed-line-ending
 
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.14.0
+  - repo: local
     hooks:
-      # Run the linter
-      - id: ruff
-        args: [--fix]
-      # Run the formatter
-      - id: ruff-format
+      - id: lint-code
+        name: Lint code with ruff
+        entry: just _lint-code
+        language: system
+        pass_filenames: false
 
-  - repo: https://github.com/rvben/rumdl-pre-commit
-    rev: v0.0.99
-    hooks:
-      - id: rumdl
-        args: [--fix]
+      - id: lint-docs
+        name: Lint markdown with rumdl
+        entry: just _lint-docs
+        language: system
+        pass_filenames: false
 
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.18.2
-    hooks:
-      - id: mypy
-        additional_dependencies: [click>=8.3.0]
-        args: [--strict]
-        files: ^src/
+      - id: typecheck
+        name: Type check with mypy
+        entry: just _typecheck
+        language: system
+        pass_filenames: false
+
+      - id: format
+        name: Run format
+        entry: just format
+        language: system
+        pass_filenames: false

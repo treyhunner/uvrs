@@ -18,15 +18,15 @@ format:
     uv run rumdl fmt --fix
 
 # Lint source code and docs
-lint: _lint-code _lint-docs
+lint: _lint-code _lint-docs _typecheck
 
-_lint-code: typecheck
+_lint-code:
     uv run ruff check
     uv run ruff format --check
 
 # Type check with mypy
-typecheck:
-    uv run mypy src/ tests/
+_typecheck:
+    uv run mypy .
 
 _lint-docs:
     uv run rumdl check
@@ -37,11 +37,11 @@ test *args:
 
 # Run tests with coverage
 test-cov:
-    uv run pytest tests/ --cov=uvrs --cov-report=term-missing --cov-report=html
+    uv run pytest --cov=uvrs --cov=tests --cov-report=term-missing --cov-report=html
 
-# Run prek on all files
-prek:
-    uv run prek run --all-files
+# Run prek on all files (accepts optional flags/args)
+prek *args:
+    uv run prek run --all-files {{ args }}
 
 # Bump version (usage: just bump-version patch|minor|major)
 bump value:

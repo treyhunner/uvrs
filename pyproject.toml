@@ -9,6 +9,11 @@ dependencies = [
     "click>=8.3.0",
 ]
 
+[project.urls]
+homepage = "https://github.com/treyhunner/uvrs"
+repository = "https://github.com/treyhunner/uvrs"
+issues = "https://github.com/treyhunner/uvrs/issues"
+
 [project.scripts]
 uvrs = "uvrs:main"
 
@@ -19,6 +24,7 @@ build-backend = "uv_build"
 [dependency-groups]
 dev = [
     "mypy>=1.18.2",
+    "pytest-mock>=3.14.0",
     "prek>=0.2.5",
     "pytest>=8.4.2",
     "pytest-cov>=7.0.0",
@@ -55,21 +61,11 @@ indent-style = "space"
 python_version = "3.10"
 strict = true
 mypy_path = ["src"]
-warn_return_any = true
-warn_unused_configs = true
-disallow_untyped_defs = true
-disallow_any_unimported = false
-no_implicit_optional = true
-warn_redundant_casts = true
-warn_unused_ignores = true
-warn_no_return = true
-check_untyped_defs = true
-strict_equality = true
 
 [[tool.mypy.overrides]]
 module = "tests.*"
-disallow_untyped_defs = false
-disallow_untyped_calls = false
+allow_untyped_defs = true
+allow_untyped_calls = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -79,8 +75,7 @@ python_functions = ["test_*"]
 addopts = "--tb=short"
 
 [tool.coverage.run]
-source = ["src/uvrs"]
-omit = ["tests/*"]
+source = ["src/uvrs", "tests"]
 
 [tool.coverage.report]
 precision = 2
