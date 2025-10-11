@@ -1,0 +1,9 @@
+[run]
+source = src/uvrs
+concurrency = multiprocessing
+parallel = True
+
+[report]
+precision = 2
+show_missing = True
+skip_covered = False

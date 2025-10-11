@@ -3,12 +3,26 @@
 import subprocess
 import sys
 from pathlib import Path
+from unittest.mock import patch
+from io import StringIO
 
 import pytest
+from click.testing import CliRunner
+
+from uvrs import cli
 
 
 def run_uvrs(*args, check=True):
-    """Helper to run uvrs command."""
+    """Helper to run uvrs command via Click's test runner."""
+    runner = CliRunner()
+    result = runner.invoke(cli, args, catch_exceptions=False)
+    if check and result.exit_code != 0:
+        raise RuntimeError(f"Command failed: {result.output}")
+    return result
+
+
+def run_uvrs_subprocess(*args, check=True):
+    """Helper to run uvrs command as subprocess (for integration tests)."""
     cmd = [sys.executable, "-m", "uvrs"] + list(args)
     result = subprocess.run(cmd, capture_output=True, text=True)
     if check and result.returncode != 0:
@@ -25,7 +39,7 @@ class TestInit:
 
         result = run_uvrs("init", str(script_path))
 
-        assert result.returncode == 0
+        assert result.exit_code == 0
         assert script_path.exists()
         assert script_path.is_file()
 
@@ -42,7 +56,7 @@ class TestInit:
 
         result = run_uvrs("init", str(script_path), "--python", "3.12")
 
-        assert result.returncode == 0
+        assert result.exit_code == 0
         content = script_path.read_text()
         assert "requires-python = \">=3.12\"" in content
 
@@ -53,9 +67,9 @@ class TestInit:
 
         result = run_uvrs("init", str(script_path), check=False)
 
-        assert result.returncode != 0
-        assert "already exists" in result.stderr
-        assert "uvrs fix" in result.stderr
+        assert result.exit_code != 0
+        assert "already exists" in result.output
+        assert "uvrs fix" in result.output
 
     def test_init_creates_pep723_metadata(self, tmp_path):
         """Test that init creates proper PEP 723 script metadata."""
@@ -80,7 +94,7 @@ class TestFix:
 
         result = run_uvrs("fix", str(script_path))
 
-        assert result.returncode == 0
+        assert result.exit_code == 0
         content = script_path.read_text()
         assert content.startswith("#!/usr/bin/env uvrs\n")
         assert 'print("hello")' in content
@@ -93,7 +107,7 @@ class TestFix:
 
         result = run_uvrs("fix", str(script_path))
 
-        assert result.returncode == 0
+        assert result.exit_code == 0
         content = script_path.read_text()
         lines = content.split("\n")
         assert lines[0] == "#!/usr/bin/env uvrs"
@@ -107,7 +121,7 @@ class TestFix:
 
         result = run_uvrs("fix", str(script_path))
 
-        assert result.returncode == 0
+        assert result.exit_code == 0
         content = script_path.read_text()
         assert content.startswith("#!/usr/bin/env uvrs\n")
         assert "uv run" not in content.split("\n")[0]
@@ -128,7 +142,7 @@ class TestFix:
 
         result = run_uvrs("fix", str(script_path), check=False)
 
-        assert result.returncode != 0
+        assert result.exit_code != 0
 
     def test_fix_empty_file(self, tmp_path):
         """Test that fix handles empty files."""
@@ -137,7 +151,7 @@ class TestFix:
 
         result = run_uvrs("fix", str(script_path))
 
-        assert result.returncode == 0
+        assert result.exit_code == 0
         content = script_path.read_text()
         assert content.startswith("#!/usr/bin/env uvrs\n")
 
@@ -158,7 +172,7 @@ class TestAddRemove:
 
         result = run_uvrs("add", str(script_path), "rich")
 
-        assert result.returncode == 0
+        assert result.exit_code == 0
         content = script_path.read_text()
         assert "rich" in content
 
@@ -175,13 +189,13 @@ class TestAddRemove:
 
         result = run_uvrs("remove", str(script_path), "rich")
 
-        assert result.returncode == 0
+        assert result.exit_code == 0
         content = script_path.read_text()
         assert "dependencies = []" in content or '"rich"' not in content
 
 
 class TestShebangMode:
-    """Tests for shebang mode execution."""
+    """Tests for shebang mode execution (using subprocess for realism)."""
 
     def test_run_script(self, tmp_path):
         """Test that uvrs can run a script."""
@@ -194,7 +208,7 @@ class TestShebangMode:
             'print("Hello from script")'
         )
 
-        result = run_uvrs(str(script_path))
+        result = run_uvrs_subprocess(str(script_path))
 
         assert result.returncode == 0
         assert "Hello from script" in result.stdout
@@ -211,7 +225,7 @@ class TestShebangMode:
             'print(" ".join(sys.argv[1:]))'
         )
 
-        result = run_uvrs(str(script_path), "arg1", "arg2", "--flag")
+        result = run_uvrs_subprocess(str(script_path), "arg1", "arg2", "--flag")
 
         assert result.returncode == 0
         assert "arg1 arg2 --flag" in result.stdout
@@ -220,7 +234,7 @@ class TestShebangMode:
         """Test that running nonexistent script fails."""
         script_path = tmp_path / "nonexistent.py"
 
-        result = run_uvrs(str(script_path), check=False)
+        result = run_uvrs_subprocess(str(script_path), check=False)
 
         assert result.returncode != 0
         assert "not found" in result.stderr.lower()
@@ -237,7 +251,7 @@ class TestShebangMode:
         )
 
         # This should not hang or cause recursion error
-        result = run_uvrs(str(script_path))
+        result = run_uvrs_subprocess(str(script_path))
 
         assert result.returncode == 0
         assert "No recursion!" in result.stdout
@@ -251,17 +265,17 @@ class TestEdgeCases:
         """Test that --help flag works."""
         result = run_uvrs("--help")
 
-        assert result.returncode == 0
-        assert "uvrs" in result.stdout
-        assert "Commands:" in result.stdout
+        assert result.exit_code == 0
+        assert "uvrs" in result.output
+        assert "Commands:" in result.output
 
     def test_subcommand_help(self):
         """Test that subcommand help works."""
         result = run_uvrs("init", "--help")
 
-        assert result.returncode == 0
-        assert "init" in result.stdout
-        assert "PATH" in result.stdout
+        assert result.exit_code == 0
+        assert "init" in result.output
+        assert "PATH" in result.output
 
     def test_script_named_like_command(self, tmp_path):
         """Test that we can run a script named like a command."""
@@ -275,7 +289,7 @@ class TestEdgeCases:
         )
 
         # With full path, should run the script
-        result = run_uvrs(str(script_path))
+        result = run_uvrs_subprocess(str(script_path))
 
         assert result.returncode == 0
         assert "I am a script named init" in result.stdout
@@ -284,9 +298,9 @@ class TestEdgeCases:
         """Test that running uvrs with no args shows help."""
         result = run_uvrs()
 
-        assert result.returncode == 0
-        assert "uvrs" in result.stdout
-        assert "Commands:" in result.stdout
+        assert result.exit_code == 0
+        assert "uvrs" in result.output
+        assert "Commands:" in result.output
 
     def test_init_command_takes_precedence(self, tmp_path):
         """Test that 'uvrs init' invokes command, not a file named 'init'."""
@@ -295,7 +309,7 @@ class TestEdgeCases:
         result = run_uvrs("init", check=False)
 
         # Should show init command help, not try to run a file
-        assert "PATH" in result.stderr or "required" in result.stderr.lower()
+        assert "PATH" in result.output or "required" in result.output.lower()
 
 
 class TestIntegration:
@@ -307,7 +321,7 @@ class TestIntegration:
 
         # 1. Initialize script
         result = run_uvrs("init", str(script_path))
-        assert result.returncode == 0
+        assert result.exit_code == 0
         assert script_path.exists()
 
         # 2. Modify script to import and use a package
@@ -320,7 +334,7 @@ class TestIntegration:
         script_path.write_text(new_content)
 
         # 3. Run the script with arguments
-        result = run_uvrs(str(script_path), "test", "args")
+        result = run_uvrs_subprocess(str(script_path), "test", "args")
         assert result.returncode == 0
         assert "Args:" in result.stdout
 
@@ -339,7 +353,7 @@ class TestIntegration:
 
         # Use fix to update it
         result = run_uvrs("fix", str(script_path))
-        assert result.returncode == 0
+        assert result.exit_code == 0
 
         # Verify shebang was updated
         content = script_path.read_text()
