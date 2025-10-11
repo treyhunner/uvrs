@@ -3,6 +3,7 @@ name = "uvrs"
 version = "0.1.0"
 description = "Create and run uv scripts with POSIX standardized shebang line"
 readme = "README.md"
+license = { file = "LICENSE" }
 requires-python = ">=3.10"
 dependencies = [
     "click>=8.3.0",
