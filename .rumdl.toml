@@ -1,0 +1,26 @@
+# rumdl configuration file
+
+# Global configuration options
+[global]
+# Disable line length rule - it's too strict for documentation
+disable = ["MD013"]
+
+# List of file/directory patterns to exclude from linting
+exclude = [
+    ".git",
+    ".github",
+    "node_modules",
+    "vendor",
+    "dist",
+    "build",
+    "CHANGELOG.md",
+    "LICENSE.md",
+]
+
+# Respect .gitignore files when scanning directories (default: true)
+respect_gitignore = true
+
+# Rule-specific configurations
+
+[MD012]
+maximum = 2  # Maximum number of consecutive blank lines allowed (allows 2 blank lines between sections)

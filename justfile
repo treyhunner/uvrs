@@ -10,10 +10,11 @@ setup:
 # Run all checks (format, lint, typecheck, test)
 check: format lint typecheck test lint-readme
 
-# Format code with ruff
+# Format code with ruff and markdown with rumdl
 format:
     uv run ruff check --fix
     uv run ruff format
+    uv run rumdl fmt --fix
 
 # Lint code with ruff
 lint:
@@ -35,10 +36,9 @@ test-cov:
 prek:
     uv run prek run --all-files
 
-# Lint README with markdown linter (placeholder - specify which tool you want)
+# Lint README and markdown files with rumdl
 lint-readme:
-    @echo "README linting not yet configured. Did you mean a specific tool?"
-    @echo "Options: mdl, markdownlint-cli, mdformat, etc."
+    uv run rumdl check
 
 # Clean up generated files
 clean:
