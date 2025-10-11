@@ -26,7 +26,7 @@ _lint-code: typecheck
 
 # Type check with mypy
 typecheck:
-    uv run mypy src/
+    uv run mypy src/ tests/
 
 _lint-docs:
     uv run rumdl check

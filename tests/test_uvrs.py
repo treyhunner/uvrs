@@ -86,8 +86,11 @@ class TestInit:
         """uv init failure should surface an error and exit with non-zero code."""
         script_path = tmp_path / "script.py"
 
+        fake_completed_process = SimpleNamespace(returncode=1, stderr="boom")
         monkeypatch.setattr(
-            uvrs.subprocess, "run", lambda *a, **k: SimpleNamespace(returncode=1, stderr="boom")
+            uvrs,
+            "subprocess",
+            SimpleNamespace(run=lambda *a, **k: fake_completed_process),
         )
 
         result = run_uvrs("init", str(script_path), check=False)
@@ -99,10 +102,11 @@ class TestInit:
         """If uv init succeeds but no file created, show an error."""
         script_path = tmp_path / "script.py"
 
+        fake_completed_process = SimpleNamespace(returncode=0, stderr="", stdout="")
         monkeypatch.setattr(
-            uvrs.subprocess,
-            "run",
-            lambda *a, **k: SimpleNamespace(returncode=0, stderr="", stdout=""),
+            uvrs,
+            "subprocess",
+            SimpleNamespace(run=lambda *a, **k: fake_completed_process),
         )
 
         result = run_uvrs("init", str(script_path), check=False)
@@ -417,7 +421,7 @@ class TestRunScript:
             captured["args"] = args
             raise SystemExit(0)
 
-        monkeypatch.setattr(uvrs.os, "execvp", fake_execvp)
+        monkeypatch.setattr(uvrs, "os", SimpleNamespace(execvp=fake_execvp))
 
         with pytest.raises(SystemExit) as exc:
             run_script([str(script_path), "arg1", "arg2"])
