@@ -5,6 +5,7 @@ import subprocess
 import sys
 from types import SimpleNamespace
 
+import click
 import pytest
 from click.testing import CliRunner
 
@@ -391,23 +392,21 @@ class TestIntegration:
 class TestRunScript:
     """Direct tests for run_script helper."""
 
-    def test_run_script_requires_args(self, capfd):
-        """Calling run_script without args should exit with an error."""
-        with pytest.raises(SystemExit) as exc:
+    def test_run_script_requires_args(self):
+        """Calling run_script without args should raise ClickException."""
+        with pytest.raises(click.ClickException) as exc:
             run_script([])
 
-        assert exc.value.code == 1
-        assert "No script path provided" in capfd.readouterr().err
+        assert "No script path provided" in str(exc.value)
 
-    def test_run_script_missing_file(self, tmp_path, capfd):
+    def test_run_script_missing_file(self, tmp_path):
         """run_script should error if the script path does not exist."""
         missing_path = tmp_path / "missing.py"
 
-        with pytest.raises(SystemExit) as exc:
+        with pytest.raises(click.ClickException) as exc:
             run_script([str(missing_path)])
 
-        assert exc.value.code == 1
-        assert "Script not found" in capfd.readouterr().err
+        assert "Script not found" in str(exc.value)
 
     def test_run_script_execvp_invocation(self, tmp_path, monkeypatch):
         """run_script should delegate to os.execvp with the correct arguments."""
@@ -439,11 +438,7 @@ class TestMain:
         calls: list[str] = []
 
         monkeypatch.setattr(sys, "argv", ["uvrs"])
-
-        def fake_cli() -> None:
-            calls.append("cli")
-
-        monkeypatch.setattr(uvrs, "cli", fake_cli)
+        monkeypatch.setattr(uvrs.cli, "main", lambda *a, **k: calls.append("cli"))
 
         main()
 
@@ -454,11 +449,8 @@ class TestMain:
         calls: list[str] = []
 
         monkeypatch.setattr(sys, "argv", ["uvrs", "init"])
-
-        def fake_cli() -> None:
-            calls.append("cli")
-
-        monkeypatch.setattr(uvrs, "cli", fake_cli)
+        monkeypatch.setattr(uvrs.cli, "main", lambda *a, **k: calls.append("cli"))
+        monkeypatch.setattr(uvrs.cli, "get_command", lambda _ctx, name: object())
 
         main()
 
@@ -469,11 +461,7 @@ class TestMain:
         calls: list[str] = []
 
         monkeypatch.setattr(sys, "argv", ["uvrs", "--help"])
-
-        def fake_cli() -> None:
-            calls.append("cli")
-
-        monkeypatch.setattr(uvrs, "cli", fake_cli)
+        monkeypatch.setattr(uvrs.cli, "main", lambda *a, **k: calls.append("cli"))
 
         main()
 
@@ -488,15 +476,42 @@ class TestMain:
 
         captured: list[list[str]] = []
 
+        calls: list[str] = []
+
         def fake_run_script(args: list[str]) -> None:
             captured.append(args)
 
         monkeypatch.setattr(uvrs, "run_script", fake_run_script)
-        monkeypatch.setattr(uvrs, "cli", lambda: None)
+        monkeypatch.setattr(uvrs.cli, "main", lambda *a, **k: calls.append("cli"))
 
         main()
 
         assert captured == [[str(script_path), "--flag"]]
+        assert calls == []
+
+    def test_main_handles_cli_without_commands(self, monkeypatch):
+        """Fallback to empty command set when cli has no commands attribute."""
+        monkeypatch.setattr(sys, "argv", ["uvrs", "script.py"])
+
+        captured: list[list[str]] = []
+
+        class DummyCLI:
+            allow_extra_args = False
+            allow_interspersed_args = True
+            ignore_unknown_options = False
+
+            def main(self, *args: object, **kwargs: object) -> None:
+                raise AssertionError("cli should not be invoked")
+
+            def get_command(self, _ctx: object, _name: str) -> None:
+                return None
+
+        monkeypatch.setattr(uvrs, "cli", DummyCLI())
+        monkeypatch.setattr(uvrs, "run_script", lambda args: captured.append(args))
+
+        main()
+
+        assert captured == [["script.py"]]
 
 
 class TestModuleEntry:
