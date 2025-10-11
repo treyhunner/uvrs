@@ -1,19 +1,23 @@
 """Tests for uvrs CLI tool."""
 
+from __future__ import annotations
+
 import runpy
 import subprocess
 import sys
+from subprocess import CompletedProcess
 from types import SimpleNamespace
+from typing import Any, cast
 
 import click
 import pytest
-from click.testing import CliRunner
+from click.testing import CliRunner, Result
 
 import uvrs
 from uvrs import cli, main, run_script
 
 
-def run_uvrs(*args, check=True):
+def run_uvrs(*args: str, check: bool = True) -> Result:
     """Helper to run uvrs command via Click's test runner."""
     runner = CliRunner()
     result = runner.invoke(cli, args, catch_exceptions=False)
@@ -22,7 +26,7 @@ def run_uvrs(*args, check=True):
     return result
 
 
-def run_uvrs_subprocess(*args, check=True):
+def run_uvrs_subprocess(*args: str, check: bool = True) -> CompletedProcess[str]:
     """Helper to run uvrs command as subprocess (for integration tests)."""
     cmd = [sys.executable, "-m", "uvrs"] + list(args)
     result = subprocess.run(cmd, capture_output=True, text=True)
@@ -302,6 +306,16 @@ class TestEdgeCases:
         assert "uvrs" in result.output
         assert "Commands:" in result.output
 
+    def test_run_uvrs_error_handling(self):
+        """Test that run_uvrs raises RuntimeError when command fails with check=True."""
+        with pytest.raises(RuntimeError, match="Command failed"):
+            run_uvrs("nonexistent_command")
+
+    def test_run_uvrs_subprocess_error_handling(self):
+        """Test that run_uvrs_subprocess raises RuntimeError when command fails with check=True."""
+        with pytest.raises(RuntimeError, match="Command failed"):
+            run_uvrs_subprocess("nonexistent_command")
+
     def test_subcommand_help(self):
         """Test that subcommand help works."""
         result = run_uvrs("init", "--help")
@@ -353,8 +367,8 @@ class TestIntegration:
         script_path = tmp_path / "my-script.py"
 
         # 1. Initialize script
-        result = run_uvrs("init", str(script_path))
-        assert result.exit_code == 0
+        init_result = run_uvrs("init", str(script_path))
+        assert init_result.exit_code == 0
         assert script_path.exists()
 
         # 2. Modify script to import and use a package
@@ -366,9 +380,9 @@ class TestIntegration:
         script_path.write_text(new_content)
 
         # 3. Run the script with arguments
-        result = run_uvrs_subprocess(str(script_path), "test", "args")
-        assert result.returncode == 0
-        assert "Args:" in result.stdout
+        run_result = run_uvrs_subprocess(str(script_path), "test", "args")
+        assert run_result.returncode == 0
+        assert "Args:" in run_result.stdout
 
     def test_init_and_fix_workflow(self, tmp_path):
         """Test that fix can update a script created elsewhere."""
@@ -420,7 +434,7 @@ class TestRunScript:
             captured["args"] = args
             raise SystemExit(0)
 
-        monkeypatch.setattr(uvrs, "os", SimpleNamespace(execvp=fake_execvp))
+        monkeypatch.setattr(uvrs, "os", cast(Any, SimpleNamespace(execvp=fake_execvp)))
 
         with pytest.raises(SystemExit) as exc:
             run_script([str(script_path), "arg1", "arg2"])
@@ -438,7 +452,7 @@ class TestMain:
         calls: list[str] = []
 
         monkeypatch.setattr(sys, "argv", ["uvrs"])
-        monkeypatch.setattr(uvrs.cli, "main", lambda *a, **k: calls.append("cli"))
+        monkeypatch.setattr(uvrs.cli, "main", cast(Any, lambda *a, **k: calls.append("cli")))
 
         main()
 
@@ -449,8 +463,8 @@ class TestMain:
         calls: list[str] = []
 
         monkeypatch.setattr(sys, "argv", ["uvrs", "init"])
-        monkeypatch.setattr(uvrs.cli, "main", lambda *a, **k: calls.append("cli"))
-        monkeypatch.setattr(uvrs.cli, "get_command", lambda _ctx, name: object())
+        monkeypatch.setattr(uvrs.cli, "main", cast(Any, lambda *a, **k: calls.append("cli")))
+        monkeypatch.setattr(uvrs.cli, "get_command", cast(Any, lambda _ctx, name: object()))
 
         main()
 
@@ -461,7 +475,7 @@ class TestMain:
         calls: list[str] = []
 
         monkeypatch.setattr(sys, "argv", ["uvrs", "--help"])
-        monkeypatch.setattr(uvrs.cli, "main", lambda *a, **k: calls.append("cli"))
+        monkeypatch.setattr(uvrs.cli, "main", cast(Any, lambda *a, **k: calls.append("cli")))
 
         main()
 
@@ -481,8 +495,8 @@ class TestMain:
         def fake_run_script(args: list[str]) -> None:
             captured.append(args)
 
-        monkeypatch.setattr(uvrs, "run_script", fake_run_script)
-        monkeypatch.setattr(uvrs.cli, "main", lambda *a, **k: calls.append("cli"))
+        monkeypatch.setattr(uvrs, "run_script", cast(Any, fake_run_script))
+        monkeypatch.setattr(uvrs.cli, "main", cast(Any, lambda *a, **k: calls.append("cli")))
 
         main()
 
@@ -499,15 +513,16 @@ class TestMain:
             allow_extra_args = False
             allow_interspersed_args = True
             ignore_unknown_options = False
+            commands: dict[str, Any] = {}
 
-            def main(self, *args: object, **kwargs: object) -> None:
+            def main(self, *args: object, **kwargs: object) -> None:  # pragma: no cover
                 raise AssertionError("cli should not be invoked")
 
             def get_command(self, _ctx: object, _name: str) -> None:
                 return None
 
-        monkeypatch.setattr(uvrs, "cli", DummyCLI())
-        monkeypatch.setattr(uvrs, "run_script", lambda args: captured.append(args))
+        monkeypatch.setattr(uvrs, "cli", cast(Any, DummyCLI()))
+        monkeypatch.setattr(uvrs, "run_script", cast(Any, lambda args: captured.append(args)))
 
         main()
 

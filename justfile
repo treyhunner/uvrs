@@ -37,7 +37,7 @@ test *args:
 
 # Run tests with coverage
 test-cov:
-    uv run pytest --cov=uvrs --cov-report=term-missing --cov-report=html
+    uv run pytest --cov=uvrs --cov=tests --cov-report=term-missing --cov-report=html
 
 # Run prek on all files (accepts optional flags/args)
 prek *args:
