@@ -1,14 +1,15 @@
-# Default recipe - show available commands
-default:
-    @just --list
+# Show available commands
+_default:
+    @printf 'Automation tasks:\n'
+    @just --list --unsorted --list-heading '' --list-prefix '  - '
 
 # Install prek git hooks
 setup:
     uv sync --all-groups
     uv run prek install
 
-# Run all checks (format, lint, typecheck, test)
-check: format lint typecheck test lint-readme
+# Run all checks (format, lint, test)
+check: format lint test
 
 # Format code with ruff and markdown with rumdl
 format:
@@ -16,17 +17,23 @@ format:
     uv run ruff format
     uv run rumdl fmt --fix
 
-# Lint code with ruff
-lint:
+# Lint source code and docs
+lint: _lint-code _lint-docs
+
+_lint-code: typecheck
     uv run ruff check
+    uv run ruff format --check
 
 # Type check with mypy
 typecheck:
     uv run mypy src/
 
+_lint-docs:
+    uv run rumdl check
+
 # Run tests
-test:
-    uv run pytest -v
+test *args:
+    uv run pytest -v {{ args }}
 
 # Run tests with coverage
 test-cov:
@@ -35,15 +42,6 @@ test-cov:
 # Run prek on all files
 prek:
     uv run prek run --all-files
-
-# Lint README and markdown files with rumdl
-lint-readme:
-    uv run rumdl check
-
-# Clean up generated files
-clean:
-    rm -rf .pytest_cache .mypy_cache .ruff_cache htmlcov .coverage
-    find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
 
 # Bump version (usage: just bump-version patch|minor|major)
 bump value:
