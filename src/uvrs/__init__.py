@@ -18,15 +18,11 @@ def cli(ctx: click.Context) -> None:
     When invoked as a shebang (#!/usr/bin/env uvrs), runs the script with uv.
     Otherwise, provides commands for managing uv scripts.
     """
-    # If no subcommand was invoked and we have arguments, we're in shebang mode
+    # If no subcommand was invoked, show help
+    # Note: shebang mode is handled in main(), not here
     if ctx.invoked_subcommand is None:
-        if len(sys.argv) > 1:
-            # Shebang mode: first argument is the script path
-            run_script(sys.argv[1:])
-        else:
-            # No arguments, show help
-            click.echo(ctx.get_help())
-            sys.exit(0)
+        click.echo(ctx.get_help())
+        sys.exit(0)
 
 
 def run_script(args: list[str]) -> None:

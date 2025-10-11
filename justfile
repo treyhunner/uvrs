@@ -2,24 +2,22 @@
 default:
     @just --list
 
+# Install prek git hooks
+setup:
+    uv sync --all-groups
+    uv run prek install
+
 # Run all checks (format, lint, typecheck, test)
 check: format lint typecheck test lint-readme
 
 # Format code with ruff
 format:
-    uv run ruff format src/ tests/
-
-# Check code formatting without making changes
-format-check:
-    uv run ruff format --check src/ tests/
+    uv run ruff check --fix
+    uv run ruff format
 
 # Lint code with ruff
 lint:
-    uv run ruff check src/ tests/
-
-# Lint and auto-fix issues
-lint-fix:
-    uv run ruff check --fix src/ tests/
+    uv run ruff check
 
 # Type check with mypy
 typecheck:
@@ -27,26 +25,14 @@ typecheck:
 
 # Run tests
 test:
-    uv run pytest tests/ -v
+    uv run pytest -v
 
 # Run tests with coverage
 test-cov:
     uv run pytest tests/ --cov=uvrs --cov-report=term-missing --cov-report=html
 
-# Run tests quickly (no output)
-test-quick:
-    uv run pytest tests/ -q
-
-# Watch tests (requires pytest-watch)
-test-watch:
-    uv run ptw tests/ -- -v
-
-# Install prek hooks
-prek-install:
-    uv run prek install
-
 # Run prek on all files
-prek-all:
+prek:
     uv run prek run --all-files
 
 # Lint README with markdown linter (placeholder - specify which tool you want)
@@ -59,21 +45,14 @@ clean:
     rm -rf .pytest_cache .mypy_cache .ruff_cache htmlcov .coverage
     find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
 
+# Bump version (usage: just bump-version patch|minor|major)
+bump value:
+    uv version --bump {{ value }}
+
 # Build the package
 build:
     uv build
 
-# Install package locally for testing
-install:
-    uv tool install .
-
-# Reinstall package locally
-reinstall:
-    uv tool uninstall uvrs || true
-    uv tool install .
-
-# Bump version (usage: just bump-version patch|minor|major)
-bump-version VERSION:
-    # This would use a tool like bump2version or similar
-    @echo "Version bumping not yet configured. Current version in pyproject.toml"
-    @grep "^version = " pyproject.toml
+# Publish to PyPI
+publish:
+    uv publish
