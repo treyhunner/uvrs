@@ -9,6 +9,11 @@ dependencies = [
     "click>=8.3.0",
 ]
 
+[project.urls]
+homepage = "https://github.com/treyhunner/uvrs"
+repository = "https://github.com/treyhunner/uvrs"
+issues = "https://github.com/treyhunner/uvrs/issues"
+
 [project.scripts]
 uvrs = "uvrs:main"
 
