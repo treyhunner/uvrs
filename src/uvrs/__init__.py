@@ -111,7 +111,7 @@ def fix(path: str) -> None:
     content = path_obj.read_text()
     lines = content.split("\n")
 
-    if not lines:
+    if content == "":
         # Empty file
         new_content = SHEBANG_LINE + "\n"
     elif lines[0].startswith("#!"):

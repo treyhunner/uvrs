@@ -1,11 +1,15 @@
 """Tests for uvrs CLI tool."""
 
+import runpy
 import subprocess
 import sys
+from types import SimpleNamespace
 
+import pytest
 from click.testing import CliRunner
 
-from uvrs import cli
+import uvrs
+from uvrs import cli, main, run_script
 
 
 def run_uvrs(*args, check=True):
@@ -77,6 +81,34 @@ class TestInit:
         assert "# /// script" in content
         assert "# dependencies = []" in content
         assert "# ///" in content
+
+    def test_init_handles_uv_failure(self, tmp_path, monkeypatch):
+        """uv init failure should surface an error and exit with non-zero code."""
+        script_path = tmp_path / "script.py"
+
+        monkeypatch.setattr(
+            uvrs.subprocess, "run", lambda *a, **k: SimpleNamespace(returncode=1, stderr="boom")
+        )
+
+        result = run_uvrs("init", str(script_path), check=False)
+
+        assert result.exit_code != 0
+        assert "Error running uv init" in result.output
+
+    def test_init_reports_missing_output(self, tmp_path, monkeypatch):
+        """If uv init succeeds but no file created, show an error."""
+        script_path = tmp_path / "script.py"
+
+        monkeypatch.setattr(
+            uvrs.subprocess,
+            "run",
+            lambda *a, **k: SimpleNamespace(returncode=0, stderr="", stdout=""),
+        )
+
+        result = run_uvrs("init", str(script_path), check=False)
+
+        assert result.exit_code != 0
+        assert "did not create" in result.output
 
 
 class TestFix:
@@ -152,6 +184,16 @@ class TestFix:
         assert result.exit_code == 0
         content = script_path.read_text()
         assert content.startswith("#!/usr/bin/env uvrs\n")
+
+    def test_fix_fails_for_directory(self, tmp_path):
+        """fix should error when given a directory path."""
+        directory_path = tmp_path / "somedir"
+        directory_path.mkdir()
+
+        result = run_uvrs("fix", str(directory_path), check=False)
+
+        assert result.exit_code != 0
+        assert "not a file" in result.output.lower()
 
 
 class TestAddRemove:
@@ -340,3 +382,131 @@ class TestIntegration:
         content = script_path.read_text()
         assert content.startswith("#!/usr/bin/env uvrs\n")
         assert content.count("#!/") == 1  # Only one shebang
+
+
+class TestRunScript:
+    """Direct tests for run_script helper."""
+
+    def test_run_script_requires_args(self, capfd):
+        """Calling run_script without args should exit with an error."""
+        with pytest.raises(SystemExit) as exc:
+            run_script([])
+
+        assert exc.value.code == 1
+        assert "No script path provided" in capfd.readouterr().err
+
+    def test_run_script_missing_file(self, tmp_path, capfd):
+        """run_script should error if the script path does not exist."""
+        missing_path = tmp_path / "missing.py"
+
+        with pytest.raises(SystemExit) as exc:
+            run_script([str(missing_path)])
+
+        assert exc.value.code == 1
+        assert "Script not found" in capfd.readouterr().err
+
+    def test_run_script_execvp_invocation(self, tmp_path, monkeypatch):
+        """run_script should delegate to os.execvp with the correct arguments."""
+        script_path = tmp_path / "script.py"
+        script_path.write_text("print('hi')\n")
+
+        captured: dict[str, list[str] | str] = {}
+
+        def fake_execvp(cmd: str, args: list[str]) -> None:
+            captured["cmd"] = cmd
+            captured["args"] = args
+            raise SystemExit(0)
+
+        monkeypatch.setattr(uvrs.os, "execvp", fake_execvp)
+
+        with pytest.raises(SystemExit) as exc:
+            run_script([str(script_path), "arg1", "arg2"])
+
+        assert exc.value.code == 0
+        assert captured["cmd"] == "uv"
+        assert captured["args"] == ["uv", "run", "--script", str(script_path), "arg1", "arg2"]
+
+
+class TestMain:
+    """Direct tests for the top-level main dispatcher."""
+
+    def test_main_no_args_invokes_cli(self, monkeypatch):
+        """No arguments should call the Click CLI entry point."""
+        calls: list[str] = []
+
+        monkeypatch.setattr(sys, "argv", ["uvrs"])
+
+        def fake_cli() -> None:
+            calls.append("cli")
+
+        monkeypatch.setattr(uvrs, "cli", fake_cli)
+
+        main()
+
+        assert calls == ["cli"]
+
+    def test_main_command_invokes_cli(self, monkeypatch):
+        """Known subcommands should dispatch to Click CLI."""
+        calls: list[str] = []
+
+        monkeypatch.setattr(sys, "argv", ["uvrs", "init"])
+
+        def fake_cli() -> None:
+            calls.append("cli")
+
+        monkeypatch.setattr(uvrs, "cli", fake_cli)
+
+        main()
+
+        assert calls == ["cli"]
+
+    def test_main_flag_invokes_cli(self, monkeypatch):
+        """Flags should be forwarded to Click CLI."""
+        calls: list[str] = []
+
+        monkeypatch.setattr(sys, "argv", ["uvrs", "--help"])
+
+        def fake_cli() -> None:
+            calls.append("cli")
+
+        monkeypatch.setattr(uvrs, "cli", fake_cli)
+
+        main()
+
+        assert calls == ["cli"]
+
+    def test_main_script_invokes_run_script(self, tmp_path, monkeypatch):
+        """A non-command argument should invoke run_script with remaining args."""
+        script_path = tmp_path / "script.py"
+        script_path.write_text("print('hello')\n")
+
+        monkeypatch.setattr(sys, "argv", ["uvrs", str(script_path), "--flag"])
+
+        captured: list[list[str]] = []
+
+        def fake_run_script(args: list[str]) -> None:
+            captured.append(args)
+
+        monkeypatch.setattr(uvrs, "run_script", fake_run_script)
+        monkeypatch.setattr(uvrs, "cli", lambda: None)
+
+        main()
+
+        assert captured == [[str(script_path), "--flag"]]
+
+
+class TestModuleEntry:
+    """Tests for running the package as ``python -m uvrs``."""
+
+    def test_dunder_main_invokes_main(self, monkeypatch):
+        """Running the module should call uvrs.main()."""
+        calls: list[str] = []
+
+        def fake_main() -> None:
+            calls.append("main")
+
+        monkeypatch.setattr(uvrs, "main", fake_main)
+
+        runpy.run_module("uvrs.__main__", run_name="__main__")
+
+        assert calls == ["main"]
