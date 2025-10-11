@@ -20,7 +20,7 @@ uv tool install uvrs
 
 ## Primary Usage
 
-The primary purpose of the `uvrs` command is to accept standard input to be run as a script.
+The primary purpose of the `uvrs` command is to accept a filename to be run as a uv script.
 
 The `uvrs` command is not designed to run a script on its own.
 If you need to run a script, use `uv run` for that.
