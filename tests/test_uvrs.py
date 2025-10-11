@@ -38,15 +38,22 @@ def run_uvrs_subprocess(*args: str, check: bool = True) -> subprocess.CompletedP
 class TestInit:
     """Tests for uvrs init command."""
 
-    def test_init_creates_script(self, tmp_path: Path) -> None:
+    def test_init_creates_script(self, tmp_path: Path, mocker: MockerFixture) -> None:
         """Test that init creates a new script with shebang."""
         script_path = tmp_path / "test-script.py"
+
+        def fake_run(args: list[str]) -> None:
+            assert args == ["uv", "init", "--script", str(script_path)]
+            script_path.write_text("print('hello')\n")
+
+        mock_run = mocker.patch("uvrs.run_uv_command", side_effect=fake_run)
 
         result = run_uvrs("init", str(script_path))
 
         assert result.exit_code == 0
         assert script_path.exists()
         assert script_path.is_file()
+        mock_run.assert_called_once()
 
         # Check shebang is present
         content = script_path.read_text()
@@ -55,15 +62,39 @@ class TestInit:
         # Check it's executable
         assert script_path.stat().st_mode & 0o111
 
-    def test_init_with_python_version(self, tmp_path: Path) -> None:
+    def test_init_with_python_version(self, tmp_path: Path, mocker: MockerFixture) -> None:
         """Test that init respects --python flag."""
         script_path = tmp_path / "test-script.py"
+
+        def fake_run(args: list[str]) -> None:
+            assert args == [
+                "uv",
+                "init",
+                "--script",
+                str(script_path),
+                "--python",
+                "3.12",
+            ]
+            script_path.write_text(
+                textwrap.dedent(
+                    """
+                    # /// script
+                    # dependencies = []
+                    # requires-python = ">=3.12"
+                    # ///
+                    print('hello')
+                    """
+                ).strip()
+            )
+
+        mock_run = mocker.patch("uvrs.run_uv_command", side_effect=fake_run)
 
         result = run_uvrs("init", str(script_path), "--python", "3.12")
 
         assert result.exit_code == 0
         content = script_path.read_text()
         assert 'requires-python = ">=3.12"' in content
+        mock_run.assert_called_once()
 
     def test_init_existing_file_fails(self, tmp_path: Path) -> None:
         """Test that init fails on existing file with helpful message."""
@@ -76,45 +107,80 @@ class TestInit:
         assert "already exists" in result.output
         assert "uvrs fix" in result.output
 
-    def test_init_creates_pep723_metadata(self, tmp_path: Path) -> None:
+    def test_init_creates_pep723_metadata(self, tmp_path: Path, mocker: MockerFixture) -> None:
         """Test that init creates proper PEP 723 script metadata."""
         script_path = tmp_path / "test-script.py"
 
+        def fake_run(args: list[str]) -> None:
+            assert args == ["uv", "init", "--script", str(script_path)]
+            script_path.write_text(
+                textwrap.dedent(
+                    """
+                    # /// script
+                    # dependencies = []
+                    # ///
+                    print('hello')
+                    """
+                ).strip()
+            )
+
+        mock_run = mocker.patch("uvrs.run_uv_command", side_effect=fake_run)
+
         run_uvrs("init", str(script_path))
+        mock_run.assert_called_once()
 
         content = script_path.read_text()
         assert "# /// script" in content
         assert "# dependencies = []" in content
         assert "# ///" in content
 
+    def test_init_forwards_extra_uv_args(self, tmp_path: Path, mocker: MockerFixture) -> None:
+        """Additional uv args should be forwarded to `uv init`."""
+        script_path = tmp_path / "extra.py"
+
+        def fake_run(args: list[str]) -> None:
+            assert args == ["uv", "init", "--script", str(script_path), "--no-venv"]
+            script_path.write_text(
+                textwrap.dedent(
+                    """
+                    # /// script
+                    # dependencies = []
+                    # ///
+                    print("hello")
+                    """
+                ).strip()
+            )
+
+        mock_run = mocker.patch("uvrs.run_uv_command", side_effect=fake_run)
+
+        result = run_uvrs("init", str(script_path), "--no-venv")
+
+        assert result.exit_code == 0
+        mock_run.assert_called_once()
+
     def test_init_handles_uv_failure(self, tmp_path: Path, mocker: MockerFixture) -> None:
         """uv init failure should surface an error and exit with non-zero code."""
         script_path = tmp_path / "script.py"
 
-        fake_completed_process = subprocess.CompletedProcess(
-            args=["uv", "init"],
-            returncode=1,
-            stderr="boom",
-        )
-        mock_run = mocker.patch("uvrs.subprocess.run", return_value=fake_completed_process)
+        def fake_run(args: list[str]) -> None:
+            assert args == ["uv", "init", "--script", str(script_path)]
+            raise SystemExit(1)
+
+        mock_run = mocker.patch("uvrs.run_uv_command", side_effect=fake_run)
 
         result = run_uvrs("init", str(script_path), check=False)
 
         assert result.exit_code != 0
-        assert "Error running uv init" in result.output
         mock_run.assert_called_once()
 
     def test_init_reports_missing_output(self, tmp_path: Path, mocker: MockerFixture) -> None:
         """If uv init succeeds but no file created, show an error."""
         script_path = tmp_path / "script.py"
 
-        fake_completed_process = subprocess.CompletedProcess(
-            args=["uv", "init"],
-            returncode=0,
-            stderr="",
-            stdout="",
-        )
-        mock_run = mocker.patch("uvrs.subprocess.run", return_value=fake_completed_process)
+        def fake_run(args: list[str]) -> None:
+            assert args == ["uv", "init", "--script", str(script_path)]
+
+        mock_run = mocker.patch("uvrs.run_uv_command", side_effect=fake_run)
 
         result = run_uvrs("init", str(script_path), check=False)
 
@@ -232,31 +298,77 @@ class TestFix:
 class TestAddRemove:
     """Tests for uvrs add and remove commands."""
 
-    def test_add_dependency(self, tmp_path: Path) -> None:
-        """Test that add command adds a dependency."""
+    def test_add_dependency(self, tmp_path: Path, mocker: MockerFixture) -> None:
+        """Test that add command forwards dependency to uv."""
         script_path = tmp_path / "script.py"
-        script_path.write_text(
-            '#!/usr/bin/env uvrs\n# /// script\n# dependencies = []\n# ///\nprint("hello")'
-        )
+        script_path.write_text("print('hello')\n")
+
+        mock_run = mocker.patch("uvrs.run_uv_command")
 
         result = run_uvrs("add", str(script_path), "rich")
 
         assert result.exit_code == 0
-        content = script_path.read_text()
-        assert "rich" in content
+        mock_run.assert_called_once_with(["uv", "add", "--script", str(script_path), "rich"])
 
-    def test_remove_dependency(self, tmp_path: Path) -> None:
-        """Test that remove command removes a dependency."""
+    def test_add_forwards_extra_args(self, tmp_path: Path, mocker: MockerFixture) -> None:
+        """uvrs add should forward additional flags to uv."""
         script_path = tmp_path / "script.py"
-        script_path.write_text(
-            '#!/usr/bin/env uvrs\n# /// script\n# dependencies = ["rich"]\n# ///\nprint("hello")'
+        script_path.write_text("print('hello')\n")
+
+        mock_run = mocker.patch("uvrs.run_uv_command")
+
+        result = run_uvrs("add", str(script_path), "--optional", "dev", "rich")
+
+        assert result.exit_code == 0
+        mock_run.assert_called_once_with(
+            ["uv", "add", "--script", str(script_path), "--optional", "dev", "rich"]
         )
+
+    def test_remove_dependency(self, tmp_path: Path, mocker: MockerFixture) -> None:
+        """Test that remove command forwards dependency to uv."""
+        script_path = tmp_path / "script.py"
+        script_path.write_text("print('hello')\n")
+
+        mock_run = mocker.patch("uvrs.run_uv_command")
 
         result = run_uvrs("remove", str(script_path), "rich")
 
         assert result.exit_code == 0
-        content = script_path.read_text()
-        assert "dependencies = []" in content or '"rich"' not in content
+        mock_run.assert_called_once_with(["uv", "remove", "--script", str(script_path), "rich"])
+
+    def test_remove_forwards_extra_args(self, tmp_path: Path, mocker: MockerFixture) -> None:
+        """uvrs remove should forward additional flags to uv."""
+        script_path = tmp_path / "script.py"
+        script_path.write_text("print('hello')\n")
+
+        mock_run = mocker.patch("uvrs.run_uv_command")
+
+        result = run_uvrs("remove", str(script_path), "--dry-run", "rich")
+
+        assert result.exit_code == 0
+        mock_run.assert_called_once_with(
+            ["uv", "remove", "--script", str(script_path), "--dry-run", "rich"]
+        )
+
+    def test_add_requires_dependency(self, tmp_path: Path) -> None:
+        """uvrs add should surface a helpful error when no dependency provided."""
+        script_path = tmp_path / "script.py"
+        script_path.write_text("print('hello')\n")
+
+        result = run_uvrs("add", str(script_path), check=False)
+
+        assert result.exit_code != 0
+        assert "dependency" in result.output.lower()
+
+    def test_remove_requires_dependency(self, tmp_path: Path) -> None:
+        """uvrs remove should surface a helpful error when no dependency provided."""
+        script_path = tmp_path / "script.py"
+        script_path.write_text("print('hello')\n")
+
+        result = run_uvrs("remove", str(script_path), check=False)
+
+        assert result.exit_code != 0
+        assert "dependency" in result.output.lower()
 
 
 class TestShebangMode:
@@ -551,3 +663,30 @@ class TestModuleEntry:
         runpy.run_module("uvrs.__main__", run_name="__main__")
 
         mock_main.assert_called_once_with()
+
+
+class TestHelpers:
+    """Unit tests for helper utilities."""
+
+    def test_run_uv_command_success(self, mocker: MockerFixture) -> None:
+        """run_uv_command should invoke subprocess.run with check enabled."""
+        mock_run = mocker.patch(
+            "uvrs.subprocess.run",
+            return_value=subprocess.CompletedProcess(["uv"], 0),
+        )
+
+        uvrs.run_uv_command(["uv", "--version"])
+
+        mock_run.assert_called_once_with(["uv", "--version"], check=True)
+
+    def test_run_uv_command_failure(self, mocker: MockerFixture) -> None:
+        """run_uv_command should exit with uv's return code when the command fails."""
+        mocker.patch(
+            "uvrs.subprocess.run",
+            side_effect=subprocess.CalledProcessError(5, ["uv", "bad"]),
+        )
+
+        with pytest.raises(SystemExit) as exc:
+            uvrs.run_uv_command(["uv", "bad"])
+
+        assert exc.value.code == 5

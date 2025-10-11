@@ -1,6 +1,7 @@
 """uvrs - Create and run uv scripts with POSIX standardized shebang line."""
 
 import os
+import shlex
 import subprocess
 import sys
 from pathlib import Path
@@ -25,6 +26,15 @@ def cli(ctx: click.Context) -> None:
         sys.exit(0)
 
 
+def run_uv_command(args: list[str]) -> None:
+    """Run a uv CLI command, echoing it first and exiting on failure."""
+    click.echo(f"Running: {' '.join(shlex.quote(arg) for arg in args)}")
+    try:
+        subprocess.run(args, check=True)
+    except subprocess.CalledProcessError as exc:
+        raise SystemExit(exc.returncode) from None
+
+
 def run_script(args: list[str]) -> None:
     """Execute a script using uv run.
 
@@ -44,10 +54,11 @@ def run_script(args: list[str]) -> None:
     os.execvp("uv", ["uv", "run", "--script", script_path, *script_args])
 
 
-@cli.command()
+@cli.command(context_settings={"ignore_unknown_options": True})
 @click.argument("path", type=click.Path(path_type=Path))
-@click.option("--python", help="Python version constraint (e.g., 3.12)")
-def init(path: Path, python: str | None) -> None:
+@click.argument("uv_args", nargs=-1, type=click.UNPROCESSED)
+@click.option("--python", "python_version", help="Python version constraint (e.g., 3.12)")
+def init(path: Path, uv_args: tuple[str, ...], python_version: str | None) -> None:
     """Create a new uv script with uvrs shebang.
 
     Creates a new script at PATH using 'uv init --script' and adds
@@ -61,14 +72,13 @@ def init(path: Path, python: str | None) -> None:
         )
 
     # Build uv init command
-    cmd = ["uv", "init", "--script", str(path)]
-    if python:
-        cmd.extend(["--python", python])
+    extra_args = list(uv_args)
+    if python_version:
+        extra_args = ["--python", python_version, *extra_args]
 
-    # Run uv init
-    result = subprocess.run(cmd, capture_output=True, text=True)
-    if result.returncode != 0:
-        raise click.ClickException(f"Error running uv init: {result.stderr}")
+    cmd = ["uv", "init", "--script", str(path), *extra_args]
+
+    run_uv_command(cmd)
 
     # Read the created file
     if not path.exists():
@@ -115,28 +125,32 @@ def fix(path: Path) -> None:
     click.echo(f"Updated shebang in {path}")
 
 
-@cli.command()
+@cli.command(context_settings={"ignore_unknown_options": True})
 @click.argument("path", type=click.Path(exists=True))
-@click.argument("dependency")
-def add(path: str, dependency: str) -> None:
+@click.argument("uv_args", nargs=-1, type=click.UNPROCESSED)
+def add(path: str, uv_args: tuple[str, ...]) -> None:
     """Add a dependency to a script's inline metadata.
 
     This is a shortcut for 'uv add --script PATH DEPENDENCY'.
     """
-    result = subprocess.run(["uv", "add", "--script", path, dependency])
-    sys.exit(result.returncode)
+    if not uv_args:
+        raise click.ClickException("Please specify at least one dependency to add.")
+
+    run_uv_command(["uv", "add", "--script", path, *uv_args])
 
 
-@cli.command()
+@cli.command(context_settings={"ignore_unknown_options": True})
 @click.argument("path", type=click.Path(exists=True))
-@click.argument("dependency")
-def remove(path: str, dependency: str) -> None:
+@click.argument("uv_args", nargs=-1, type=click.UNPROCESSED)
+def remove(path: str, uv_args: tuple[str, ...]) -> None:
     """Remove a dependency from a script's inline metadata.
 
     This is a shortcut for 'uv remove --script PATH DEPENDENCY'.
     """
-    result = subprocess.run(["uv", "remove", "--script", path, dependency])
-    sys.exit(result.returncode)
+    if not uv_args:
+        raise click.ClickException("Please specify at least one dependency to remove.")
+
+    run_uv_command(["uv", "remove", "--script", path, *uv_args])
 
 
 def is_click_command(argument: str) -> bool:
