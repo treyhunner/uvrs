@@ -148,9 +148,14 @@ def is_click_command(argument: str) -> bool:
 def main() -> None:
     """Main entry point for uvrs CLI."""
     # Check if we're in shebang mode (first arg is not a known subcommand)
-    if len(sys.argv) == 1 or sys.argv[1].startswith("-") or is_click_command(sys.argv[1]):
+    args = sys.argv[1:]
+    if not args or args[0].startswith("-") or is_click_command(args[0]):
         # No arguments, first argument is a known command, or it's a flag (--help)
         cli()
     else:
         # Shebang mode: first argument is the script path
-        run_script(sys.argv[1:])
+        try:
+            run_script(args)
+        except click.ClickException as exc:
+            exc.show()
+            sys.exit(getattr(exc, "exit_code", 1))

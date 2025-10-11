@@ -513,6 +513,22 @@ class TestMain:
 
         assert captured == [["script.py"]]
 
+    def test_main_shows_run_script_error(self, monkeypatch, capsys):
+        """Errors from run_script should be rendered cleanly and exit with code 1."""
+        monkeypatch.setattr(sys, "argv", ["uvrs", "script.py"])
+
+        def boom(_args: list[str]) -> None:
+            raise click.ClickException("boom")
+
+        monkeypatch.setattr(uvrs, "run_script", boom)
+
+        with pytest.raises(SystemExit) as exc:
+            main()
+
+        assert exc.value.code == 1
+        err = capsys.readouterr().err
+        assert "Error: boom" in err
+
 
 class TestModuleEntry:
     """Tests for running the package as ``python -m uvrs``."""
