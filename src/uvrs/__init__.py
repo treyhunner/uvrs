@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib.metadata
 import shlex
 import subprocess
 import sys
@@ -12,11 +13,15 @@ from pathlib import Path
 
 from rich import print
 
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
 CommandArgs = Sequence[str | PathLike[str]]
 
 
 def readable_path(value: str) -> Path:
-    """Argparse type that accepts only existing files."""
+    """Argparse type that accepts only paths pointing to files."""
     path = Path(value)
     if not path.exists():
         raise ArgumentTypeError(f"{value} does not exist")
@@ -26,18 +31,18 @@ def readable_path(value: str) -> Path:
 
 
 def args_join(args: CommandArgs) -> str:
-    """Return shell-quoted command arguments for display."""
+    """Return a shell-quoted representation of ``args`` for logging."""
     return shlex.join(str(arg) for arg in args)
 
 
 def fail(message: str, exit_code: int = 1) -> None:
-    """Emit an error message and exit immediately."""
+    """Print ``message`` to stderr and exit the process."""
     print(message, file=sys.stderr)
     raise SystemExit(exit_code)
 
 
 def run_uv_command(args: CommandArgs) -> None:
-    """Log and execute a uv command, surfacing failures via exit codes."""
+    """Log and execute a ``uv`` CLI command, preserving exit codes."""
     print(f"[bold cyan]→ uvrs executing:[/] {args_join(args)}")
     try:
         subprocess.run([str(arg) for arg in args], check=True)
@@ -46,8 +51,13 @@ def run_uv_command(args: CommandArgs) -> None:
 
 
 def run_script(args: Sequence[str]) -> None:
-    """Execute ``uv run --script`` replacing the current process."""
+    """Delegate execution to ``uv run --script`` replacing the current process."""
     execvp("uv", ["uv", "run", "--script", *args])
+
+
+# ---------------------------------------------------------------------------
+# Command handlers
+# ---------------------------------------------------------------------------
 
 
 def handle_init(args: Namespace, extras: Sequence[str]) -> None:
@@ -75,12 +85,11 @@ def handle_init(args: Namespace, extras: Sequence[str]) -> None:
 
 
 def handle_fix(args: Namespace, extras: Sequence[str]) -> None:
-    """Implement ``uvrs fix`` by ensuring the shebang is correct."""
-    path: Path = args.path
-
+    """Ensure an existing script uses the uvrs shebang."""
     if extras:
         fail(f"[bold red]error[/]: unrecognized arguments [yellow]{args_join(extras)}[/]")
 
+    path: Path = args.path
     content = path.read_text()
     if content.startswith("#!"):
         new_content = "\n".join(["#!/usr/bin/env uvrs", *content.splitlines()[1:]])
@@ -96,13 +105,22 @@ def handle_fix(args: Namespace, extras: Sequence[str]) -> None:
 
 
 def handle_add(args: Namespace, extras: Sequence[str]) -> None:
-    """Implement ``uvrs add`` by delegating to ``uv add``."""
+    """Forward to ``uv add --script`` with any additional arguments."""
     run_uv_command(["uv", "add", "--script", args.path, *extras])
 
 
 def handle_remove(args: Namespace, extras: Sequence[str]) -> None:
-    """Implement ``uvrs remove`` by delegating to ``uv remove``."""
+    """Forward to ``uv remove --script`` with any additional arguments."""
     run_uv_command(["uv", "remove", "--script", args.path, *extras])
+
+
+# ---------------------------------------------------------------------------
+# Parser / entrypoint
+# ---------------------------------------------------------------------------
+
+
+def _version_string() -> str:
+    return importlib.metadata.version("uvrs")
 
 
 def create_parser() -> ArgumentParser:
@@ -111,6 +129,8 @@ def create_parser() -> ArgumentParser:
         prog="uvrs",
         description="Create and run uv scripts with POSIX standardized shebang line",
     )
+    parser.add_argument("--version", action="version", version=f"uvrs {_version_string()}")
+
     subparsers = parser.add_subparsers(dest="command")
 
     init_parser = subparsers.add_parser(
@@ -162,8 +182,14 @@ def main(argv: Iterable[str] | None = None) -> None:
     parser = create_parser()
     if not args_list:
         parser.print_help()
-    elif args_list[0].startswith("-") or args_list[0] in _command_names(parser):
-        args, extras = parser.parse_known_args(args_list)
-        args.handler(args, extras)
+        return
+
+    if args_list[0].startswith("-") or args_list[0] in _command_names(parser):
+        namespace, extras = parser.parse_known_args(args_list)
+        handler = getattr(namespace, "handler", None)
+        if handler is None:
+            fail("No command specified")
+        assert callable(handler)
+        handler(namespace, extras)
     else:
         run_script(args_list)

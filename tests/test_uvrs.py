@@ -282,6 +282,11 @@ class TestMainBehaviour:
         assert result.exit_code == 1
         assert "boom" in result.stderr
 
+    def test_main_version_flag(self) -> None:
+        result = run_uvrs("--version", check=False)
+        assert result.exit_code == 0
+        assert result.stdout.strip().startswith("uvrs ")
+
     def test_main_command_paths_to_handler(self, tmp_path: Path, mocker: MockerFixture) -> None:
         script_path = tmp_path / "script.py"
 
@@ -309,18 +314,17 @@ class TestHelpers:
         mock_execvp.assert_called_once_with("uv", ["uv", "run", "--script", "script.py", "--flag"])
 
     def test_run_uv_command_success(self, mocker: MockerFixture) -> None:
-        stdout = io.StringIO()
-        mocker.patch("uvrs.print", side_effect=rich_stub(stdout, io.StringIO()))
+        mock_print = mocker.patch("uvrs.print")
         mock_run = mocker.patch("uvrs.subprocess.run")
         mock_run.return_value.returncode = 0
 
         uvrs.run_uv_command(["uv", "--version"])
 
         mock_run.assert_called_once_with(["uv", "--version"], check=True)
-        assert "uvrs executing" in stdout.getvalue()
+        mock_print.assert_any_call("[bold cyan]→ uvrs executing:[/] uv --version")
 
     def test_run_uv_command_failure(self, mocker: MockerFixture) -> None:
-        mocker.patch("uvrs.print", side_effect=rich_stub(io.StringIO(), io.StringIO()))
+        mocker.patch("uvrs.print")
         mocker.patch(
             "uvrs.subprocess.run",
             side_effect=subprocess.CalledProcessError(5, ["uv", "bad"]),
