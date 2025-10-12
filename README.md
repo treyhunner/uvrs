@@ -14,8 +14,10 @@ Unlike the shebang line [recommended by uv's documentation][uv shebang], the abo
 This should be installed as a globally available tool (so the above shebang line works):
 
 ```console
-uv tool install uvrs
+uv tool install -p 3.14 uvrs
 ```
+
+That will install `uvrs` using Python 3.14 (for nicely colorized help text).
 
 
 ## Primary Usage
