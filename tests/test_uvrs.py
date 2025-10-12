@@ -46,7 +46,7 @@ def run_uvrs(*args: str, check: bool = True) -> CommandResult:
     exit_code = 0
 
     with (
-        patch("uvrs.rprint", side_effect=rich_stub(stdout, stderr)),
+        patch("uvrs.print", side_effect=rich_stub(stdout, stderr)),
         redirect_stdout(stdout),
         redirect_stderr(stderr),
     ):
@@ -310,7 +310,7 @@ class TestHelpers:
 
     def test_run_uv_command_success(self, mocker: MockerFixture) -> None:
         stdout = io.StringIO()
-        mocker.patch("uvrs.rprint", side_effect=rich_stub(stdout, io.StringIO()))
+        mocker.patch("uvrs.print", side_effect=rich_stub(stdout, io.StringIO()))
         mock_run = mocker.patch("uvrs.subprocess.run")
         mock_run.return_value.returncode = 0
 
@@ -320,7 +320,7 @@ class TestHelpers:
         assert "uvrs executing" in stdout.getvalue()
 
     def test_run_uv_command_failure(self, mocker: MockerFixture) -> None:
-        mocker.patch("uvrs.rprint", side_effect=rich_stub(io.StringIO(), io.StringIO()))
+        mocker.patch("uvrs.print", side_effect=rich_stub(io.StringIO(), io.StringIO()))
         mocker.patch(
             "uvrs.subprocess.run",
             side_effect=subprocess.CalledProcessError(5, ["uv", "bad"]),

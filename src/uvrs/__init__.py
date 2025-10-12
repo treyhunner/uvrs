@@ -10,7 +10,7 @@ from collections.abc import Iterable, Sequence
 from os import PathLike, execvp
 from pathlib import Path
 
-from rich import print as rprint
+from rich import print
 
 CommandArgs = Sequence[str | PathLike[str]]
 
@@ -32,13 +32,13 @@ def args_join(args: CommandArgs) -> str:
 
 def fail(message: str, exit_code: int = 1) -> None:
     """Emit an error message and exit immediately."""
-    rprint(message, file=sys.stderr)
+    print(message, file=sys.stderr)
     raise SystemExit(exit_code)
 
 
 def run_uv_command(args: CommandArgs) -> None:
     """Log and execute a uv command, surfacing failures via exit codes."""
-    rprint(f"[bold cyan]→ uvrs executing:[/] {args_join(args)}")
+    print(f"[bold cyan]→ uvrs executing:[/] {args_join(args)}")
     try:
         subprocess.run([str(arg) for arg in args], check=True)
     except subprocess.CalledProcessError as exc:  # pragma: no cover
@@ -71,7 +71,7 @@ def handle_init(args: Namespace, extras: Sequence[str]) -> None:
     path.write_text(f"#!/usr/bin/env uvrs\n{content}")
     path.chmod(path.stat().st_mode | 0o111)
 
-    rprint(f"Updated shebang in `[cyan]{path}[/]`")
+    print(f"Updated shebang in `[cyan]{path}[/]`")
 
 
 def handle_fix(args: Namespace, extras: Sequence[str]) -> None:
@@ -92,7 +92,7 @@ def handle_fix(args: Namespace, extras: Sequence[str]) -> None:
     if not (current_mode & 0o111):
         path.chmod(current_mode | 0o111)
 
-    rprint(f"Updated shebang in `[cyan]{path}[/]`")
+    print(f"Updated shebang in `[cyan]{path}[/]`")
 
 
 def handle_add(args: Namespace, extras: Sequence[str]) -> None:
@@ -161,7 +161,7 @@ def main(argv: Iterable[str] | None = None) -> None:
 
     parser = create_parser()
     if not args_list:
-        print(parser.format_help())
+        parser.print_help()
     elif args_list[0].startswith("-") or args_list[0] in _command_names(parser):
         args, extras = parser.parse_known_args(args_list)
         args.handler(args, extras)
