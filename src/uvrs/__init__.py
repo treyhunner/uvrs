@@ -1,175 +1,161 @@
-"""uvrs - Create and run uv scripts with POSIX standardized shebang line."""
+"""Create and run uv scripts with a POSIX-friendly shebang."""
 
-import os
+from __future__ import annotations
+
 import shlex
 import subprocess
 import sys
+from argparse import ArgumentParser, ArgumentTypeError, Namespace, _SubParsersAction
+from collections.abc import Iterable, Sequence
+from os import PathLike, execvp
 from pathlib import Path
 
-import click
-
-SHEBANG_LINE = "#!/usr/bin/env uvrs"
+from rich import print as rprint
 
 
-@click.group(invoke_without_command=True)
-@click.pass_context
-def cli(ctx: click.Context) -> None:
-    """uvrs - Create and run uv scripts with POSIX standardized shebang line.
-
-    When invoked as a shebang (#!/usr/bin/env uvrs), runs the script with uv.
-    Otherwise, provides commands for managing uv scripts.
-    """
-    # If no subcommand was invoked, show help
-    # Note: shebang mode is handled in main(), not here
-    if ctx.invoked_subcommand is None:
-        click.echo(ctx.get_help())
-        sys.exit(0)
+def readable_path(value: str) -> Path:
+    path = Path(value)
+    if not path.exists():
+        raise ArgumentTypeError(f"{value} does not exist")
+    if not path.is_file():
+        raise ArgumentTypeError(f"{value} is not a file")
+    return path
 
 
-def run_uv_command(args: list[str]) -> None:
-    """Run a uv CLI command, echoing it first and exiting on failure."""
-    click.echo(f"Running: {' '.join(shlex.quote(arg) for arg in args)}")
+CommandArgs = Sequence[str | PathLike[str]]
+
+
+def args_join(args: CommandArgs) -> str:
+    return shlex.join(str(arg) for arg in args)
+
+
+def run_uv_command(args: CommandArgs) -> None:
+    rprint(f"[bold cyan]→ uvrs executing:[/] {args_join(args)}")
     try:
-        subprocess.run(args, check=True)
+        subprocess.run(list(map(str, args)), check=True)
     except subprocess.CalledProcessError as exc:
         raise SystemExit(exc.returncode) from None
 
 
-def run_script(args: list[str]) -> None:
-    """Execute a script using uv run.
-
-    Args:
-        args: List of arguments where first is the script path and rest are script arguments
-    """
-    if not args:
-        raise click.ClickException("No script path provided")
-
-    [script_path, *script_args] = args
-
-    # Check if script exists
-    if not Path(script_path).exists():
-        raise click.ClickException(f"Script not found: {script_path}")
-
-    # Execute with uv run --script to avoid recursive shebang invocation
-    os.execvp("uv", ["uv", "run", "--script", script_path, *script_args])
+def fail(message: str, exit_code: int = 1) -> None:
+    rprint(message, file=sys.stderr)
+    raise SystemExit(exit_code)
 
 
-@cli.command(context_settings={"ignore_unknown_options": True})
-@click.argument("path", type=click.Path(path_type=Path))
-@click.argument("uv_args", nargs=-1, type=click.UNPROCESSED)
-@click.option("--python", "python_version", help="Python version constraint (e.g., 3.12)")
-def init(path: Path, uv_args: tuple[str, ...], python_version: str | None) -> None:
-    """Create a new uv script with uvrs shebang.
+def run_script(args: Sequence[str]) -> None:
+    execvp("uv", ["uv", "run", "--script", *args])
 
-    Creates a new script at PATH using 'uv init --script' and adds
-    the #!/usr/bin/env uvrs shebang line.
-    """
 
-    # Check if file already exists
+def create_parser() -> ArgumentParser:
+    parser = ArgumentParser(
+        prog="uvrs",
+        description="Create and run uv scripts with POSIX standardized shebang line",
+    )
+    subparsers = parser.add_subparsers(dest="command")
+
+    # init
+    init_parser = subparsers.add_parser(
+        "init",
+        help="Create a new script via `uv init --script` and add the uvrs shebang",
+        add_help=True,
+    )
+    init_parser.add_argument("path", type=Path)
+    init_parser.add_argument("--python", dest="python_version")
+    init_parser.set_defaults(handler=handle_init, parser=init_parser)
+
+    # fix
+    fix_parser = subparsers.add_parser(
+        "fix",
+        help="Ensure a script starts with the uvrs shebang",
+    )
+    fix_parser.add_argument("path", type=readable_path)
+    fix_parser.set_defaults(handler=handle_fix, parser=fix_parser)
+
+    # add
+    add_parser = subparsers.add_parser(
+        "add",
+        help="Forward to `uv add --script` with the provided arguments",
+    )
+    add_parser.add_argument("path", type=readable_path)
+    add_parser.set_defaults(handler=handle_add, parser=add_parser)
+
+    # remove
+    remove_parser = subparsers.add_parser(
+        "remove",
+        help="Forward to `uv remove --script` with the provided arguments",
+    )
+    remove_parser.add_argument("path", type=readable_path)
+    remove_parser.set_defaults(handler=handle_remove, parser=remove_parser)
+
+    return parser
+
+
+def _command_names(parser: ArgumentParser) -> set[str]:
+    return next(
+        set(action.choices.keys())
+        for action in parser._actions
+        if isinstance(action, _SubParsersAction)
+    )
+
+
+def handle_init(namespace: Namespace, extras: Sequence[str]) -> None:
+    path: Path = namespace.path
+    python_version = namespace.python_version
+
     if path.exists():
-        raise click.ClickException(
-            f"File already exists at {path}\nUse 'uvrs fix {path}' to add or update the shebang line"
+        fail(
+            f"File already exists at `[cyan]{path}[/]`\n"
+            f"To add or update the shebang use: [cyan]uvrs fix {path}[/]",
         )
 
-    # Build uv init command
-    extra_args = list(uv_args)
+    extra_args = list(extras)
     if python_version:
         extra_args = ["--python", python_version, *extra_args]
 
-    cmd = ["uv", "init", "--script", str(path), *extra_args]
+    run_uv_command(["uv", "init", "--script", path, *extra_args])
 
-    run_uv_command(cmd)
-
-    # Read the created file
-    if not path.exists():
-        raise click.ClickException(f"uv init did not create file at {path}")
-
-    # Add shebang at the beginning
     content = path.read_text()
-    path.write_text(f"{SHEBANG_LINE}\n{content}")
-
-    # Make executable
+    path.write_text(f"#!/usr/bin/env uvrs\n{content}")
     path.chmod(path.stat().st_mode | 0o111)
 
-    click.echo(f"Initialized script at {path} with uvrs shebang")
+    rprint(f"Updated shebang in `[cyan]{path}[/]`")
 
 
-@cli.command()
-@click.argument("path", type=click.Path(exists=True, path_type=Path))
-def fix(path: Path) -> None:
-    """Add or update shebang line to use uvrs.
+def handle_fix(namespace: Namespace, extras: Sequence[str]) -> None:
+    if extras:
+        fail(f"[bold red]error[/]: unrecognized arguments [yellow]{args_join(extras)}[/]")
 
-    If PATH has no shebang, adds #!/usr/bin/env uvrs.
-    If PATH has a uv run shebang, updates it to use uvrs.
-    """
-
-    # Check if it's a file
-    if not path.is_file():
-        raise click.ClickException(f"{path} is not a file")
-
+    path: Path = namespace.path
     content = path.read_text()
     if content.startswith("#!"):
-        # Has a shebang, replace it
-        new_content = "\n".join([SHEBANG_LINE, *content.split("\n")[1:]])
+        new_content = "\n".join(["#!/usr/bin/env uvrs", *content.splitlines()[1:]])
     else:
-        # No shebang, add it
-        new_content = f"{SHEBANG_LINE}\n{content}"
-
+        new_content = f"#!/usr/bin/env uvrs\n{content}"
     path.write_text(new_content)
 
-    # Make executable if not already
     current_mode = path.stat().st_mode
     if not (current_mode & 0o111):
         path.chmod(current_mode | 0o111)
 
-    click.echo(f"Updated shebang in {path}")
+    rprint(f"Updated shebang in `[cyan]{path}[/]`")
 
 
-@cli.command(context_settings={"ignore_unknown_options": True})
-@click.argument("path", type=click.Path(exists=True))
-@click.argument("uv_args", nargs=-1, type=click.UNPROCESSED)
-def add(path: str, uv_args: tuple[str, ...]) -> None:
-    """Add a dependency to a script's inline metadata.
-
-    This is a shortcut for 'uv add --script PATH DEPENDENCY'.
-    """
-    if not uv_args:
-        raise click.ClickException("Please specify at least one dependency to add.")
-
-    run_uv_command(["uv", "add", "--script", path, *uv_args])
+def handle_add(namespace: Namespace, extras: Sequence[str]) -> None:
+    run_uv_command(["uv", "add", "--script", namespace.path, *extras])
 
 
-@cli.command(context_settings={"ignore_unknown_options": True})
-@click.argument("path", type=click.Path(exists=True))
-@click.argument("uv_args", nargs=-1, type=click.UNPROCESSED)
-def remove(path: str, uv_args: tuple[str, ...]) -> None:
-    """Remove a dependency from a script's inline metadata.
-
-    This is a shortcut for 'uv remove --script PATH DEPENDENCY'.
-    """
-    if not uv_args:
-        raise click.ClickException("Please specify at least one dependency to remove.")
-
-    run_uv_command(["uv", "remove", "--script", path, *uv_args])
+def handle_remove(namespace: Namespace, extras: Sequence[str]) -> None:
+    run_uv_command(["uv", "remove", "--script", namespace.path, *extras])
 
 
-def is_click_command(argument: str) -> bool:
-    """Return True if the given argument represents a click command."""
-    ctx = click.Context(cli)
-    return cli.get_command(ctx, argument) is not None
+def main(argv: Iterable[str] | None = None) -> None:
+    args_list = list(argv if argv is not None else sys.argv[1:])
 
-
-def main() -> None:
-    """Main entry point for uvrs CLI."""
-    # Check if we're in shebang mode (first arg is not a known subcommand)
-    args = sys.argv[1:]
-    if not args or args[0].startswith("-") or is_click_command(args[0]):
-        # No arguments, first argument is a known command, or it's a flag (--help)
-        cli()
+    parser = create_parser()
+    if not args_list:
+        print(parser.format_help())
+    elif args_list[0].startswith("-") or args_list[0] in _command_names(parser):
+        namespace, extras = parser.parse_known_args(args_list)
+        namespace.handler(namespace, extras)
     else:
-        # Shebang mode: first argument is the script path
-        try:
-            run_script(args)
-        except click.ClickException as exc:
-            exc.show()
-            sys.exit(getattr(exc, "exit_code", 1))
+        run_script(args_list)
