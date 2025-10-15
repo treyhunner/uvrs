@@ -1,6 +1,6 @@
 [project]
 name = "uvrs"
-version = "0.5.0"
+version = "0.6.0"
 description = "Create and run uv scripts with POSIX standardized shebang line"
 readme = "README.md"
 license = { file = "LICENSE" }
