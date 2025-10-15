@@ -16,22 +16,33 @@ repos:
         name: Lint code with ruff
         entry: just _lint-code
         language: system
-        pass_filenames: false
+        pass_filenames: true
+        types: [python]
 
       - id: lint-docs
         name: Lint markdown with rumdl
         entry: just _lint-docs
         language: system
-        pass_filenames: false
+        pass_filenames: true
+        types: [markdown]
 
       - id: typecheck
         name: Type check with ty
         entry: just _typecheck
         language: system
         pass_filenames: false
+        types: [python]
 
-      - id: format
-        name: Run format
-        entry: just format
+      - id: format-code
+        name: Format code with ruff
+        entry: just _format-code
         language: system
-        pass_filenames: false
+        pass_filenames: true
+        types: [python]
+
+      - id: format-docs
+        name: Format markdown with rumdl
+        entry: just _format-docs
+        language: system
+        pass_filenames: true
+        types: [markdown]
