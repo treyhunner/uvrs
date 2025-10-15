@@ -53,6 +53,8 @@ bump value:
 
 # Build the package
 build:
+    # https://github.com/astral-sh/uv/issues/10293
+    rm -f dist/*.tar.gz dist/*.whl
     uv build
 
 # Publish to PyPI
