@@ -87,7 +87,8 @@ To add a new dependency:
 uvrs add ~/bin/my-script 'rich'
 ```
 
-This is simply a shortcut for running `uv add --script ~/bin/my-script` 'rich'`.
+This runs `uv add --script ~/bin/my-script 'rich'` followed by
+`uv sync --script ~/bin/my-script`, so the dependency is installed immediately.
 
 To remove a new dependency:
 
@@ -95,7 +96,8 @@ To remove a new dependency:
 uvrs remove ~/bin/my-script 'rich'
 ```
 
-This is simply a shortcut for running `uv remove --script ~/bin/my-script` 'rich'`.
+This runs `uv remove --script ~/bin/my-script 'rich'` and then
+`uv sync --script ~/bin/my-script` to keep the resolved environment up to date.
 
 
 ## The goal
