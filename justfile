@@ -12,24 +12,28 @@ setup:
 check: format lint test
 
 # Format code with ruff and markdown with rumdl
-format:
-    uv run ruff check --fix
-    uv run ruff format
-    uv run rumdl fmt --fix
+format: _format-code _format-docs
+
+_format-code *files='':
+    uv run ruff check --fix {{ files }}
+    uv run ruff format {{ files }}
+
+_format-docs *files='':
+    uv run rumdl fmt --fix {{ files }}
 
 # Lint source code and docs
 lint: _lint-code _lint-docs _typecheck
 
-_lint-code:
-    uv run ruff check
-    uv run ruff format --check
+_lint-code *files='':
+    uv run ruff check {{ files }}
+    uv run ruff format --check {{ files }}
 
 # Type check with ty
-_typecheck:
-    uv run ty check .
+_typecheck *files='':
+    uv run ty check {{ files }}
 
-_lint-docs:
-    uv run rumdl check
+_lint-docs *files='':
+    uv run rumdl check {{ files }}
 
 # Run tests
 test *args:
