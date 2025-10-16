@@ -7,6 +7,26 @@ This is `uv run --script`, `uv add --script`, and `uv remove --script` rolled in
 Unlike `uv`, `uvrs` adds a shebang line, sets an executable bit, and uses timestamp-pins requirements by default.
 
 
+## Why this exists
+
+While `uv` has excellent support for [inline script metadata (PEP 723)][PEP 723], there are several rough edges when managing scripts:
+
+1. **Non-portable shebang**: The [recommended shebang][uv shebang] uses `#!/usr/bin/env -S uv run --script`, which relies on the non-standard `-S` flag that doesn't work on some systems ([uv issue #11876][11876])
+
+2. **No executable bit**: `uv init --script` creates files that aren't executable by default, requiring a manual `chmod +x`
+
+3. **Inconsistent syncing**: After `uv add --script` or `uv remove --script`, the virtual environment isn't synced - running the script *may* implicitly sync new packages, but removed packages always stay installed until you manually run `uv sync --script`
+
+4. **No reproducibility by default**: Scripts don't include `exclude-newer` timestamps, so running the same script weeks later may use different package versions, breaking reproducibility
+
+`uvrs` addresses all of these issues:
+
+- **Portable shebang** that works everywhere: `#!/usr/bin/env uvrs`
+- **Executable by default** for new and fixed scripts
+- **Automatic syncing** after add/remove operations
+- **Reproducible by default** with automatic `exclude-newer` timestamps
+
+
 ## Installation
 
 This should be installed as a globally available tool (so the above shebang line works):
@@ -165,6 +185,7 @@ Eventually, I would like to see a similar tool [integrated into uv][16241].
 Until that time, I plan to maintain this uvrs tool.
 
 
+[PEP 723]: https://peps.python.org/pep-0723/
 [uv shebang]: https://docs.astral.sh/uv/guides/scripts/#using-a-shebang-to-create-an-executable-file
 [11876]: https://github.com/astral-sh/uv/issues/11876
 [16241]: https://github.com/astral-sh/uv/issues/16241
