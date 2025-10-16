@@ -107,7 +107,8 @@ def parse_metadata(match: re.Match[str]) -> str:
     Returns the raw TOML string (without comment prefixes).
     """
     return "\n".join(
-        line.removeprefix("#").removeprefix(" ") for line in match.group("content").splitlines()
+        line.removeprefix("#").removeprefix(" ")
+        for line in match.group("content").splitlines()
     )
 
 
@@ -119,7 +120,9 @@ def format_metadata(toml_content: str) -> str:
     Does not include a trailing newline after # /// to avoid duplicating
     the newline that already exists in the content after the block.
     """
-    commented_lines = [f"# {line}" if line else "#" for line in toml_content.splitlines()]
+    commented_lines = [
+        f"# {line}" if line else "#" for line in toml_content.splitlines()
+    ]
     return "# /// script\n" + "\n".join(commented_lines) + "\n# ///"
 
 
@@ -200,7 +203,9 @@ def handle_init(args: Namespace, extras: Sequence[str]) -> None:
 def handle_fix(args: Namespace, extras: Sequence[str]) -> None:
     """Ensure an existing script uses the uvrs shebang."""
     if extras:
-        fail(f"[bold red]error[/]: unrecognized arguments [yellow]{args_join(extras)}[/]")
+        fail(
+            f"[bold red]error[/]: unrecognized arguments [yellow]{args_join(extras)}[/]"
+        )
 
     path: Path = args.path
     no_stamp = args.no_stamp
@@ -243,7 +248,9 @@ def handle_stamp(args: Namespace, extras: Sequence[str]) -> None:
     path: Path = args.path
 
     if extras:
-        fail(f"[bold red]error[/]: unrecognized arguments [yellow]{args_join(extras)}[/]")
+        fail(
+            f"[bold red]error[/]: unrecognized arguments [yellow]{args_join(extras)}[/]"
+        )
 
     # Update the timestamp (create metadata if it doesn't exist)
     timestamp = update_exclude_newer(path)
@@ -268,7 +275,11 @@ def create_parser() -> ArgumentParser:
         prog="uvrs",
         description="Create and run uv scripts with POSIX standardized shebang line",
     )
-    parser.add_argument("--version", action="version", version=f"uvrs {_version_string()}")
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"uvrs {_version_string()}",
+    )
 
     subparsers = parser.add_subparsers(dest="command")
 

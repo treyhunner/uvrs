@@ -32,7 +32,11 @@ def rich_stub(stdout: io.StringIO, stderr: io.StringIO) -> Callable[..., None]:
     def _print(*objects: object, **kwargs: Any) -> None:
         target = kwargs.pop("file", None)
         stream = (
-            stdout if target in (None, sys.stdout) else stderr if target is sys.stderr else stdout
+            stdout
+            if target in (None, sys.stdout)
+            else stderr
+            if target is sys.stderr
+            else stdout
         )
         kwargs.pop("markup", None)
         kwargs.pop("highlight", None)
@@ -61,7 +65,11 @@ def run_uvrs(*args: str, check: bool = True) -> CommandResult:
         else:
             exit_code = 0
 
-    return CommandResult(exit_code=exit_code, stdout=stdout.getvalue(), stderr=stderr.getvalue())
+    return CommandResult(
+        exit_code=exit_code,
+        stdout=stdout.getvalue(),
+        stderr=stderr.getvalue(),
+    )
 
 
 class TestInit:
@@ -93,7 +101,11 @@ class TestInit:
         assert "[tool.uv]" in content
         assert "exclude-newer" in content
 
-    def test_init_with_python_version(self, tmp_path: Path, mocker: MockerFixture) -> None:
+    def test_init_with_python_version(
+        self,
+        tmp_path: Path,
+        mocker: MockerFixture,
+    ) -> None:
         script_path = tmp_path / "test-script.py"
 
         def fake_run(args: Sequence[Any]) -> None:
@@ -133,7 +145,11 @@ class TestInit:
         assert result.exit_code == 1
         assert "already exists" in result.stderr
 
-    def test_init_forwards_extra_uv_args(self, tmp_path: Path, mocker: MockerFixture) -> None:
+    def test_init_forwards_extra_uv_args(
+        self,
+        tmp_path: Path,
+        mocker: MockerFixture,
+    ) -> None:
         script_path = tmp_path / "extra.py"
 
         def fake_run(args: Sequence[Any]) -> None:
@@ -153,7 +169,11 @@ class TestInit:
 
         run_uvrs("init", str(script_path), "--no-venv")
 
-    def test_init_handles_uv_failure(self, tmp_path: Path, mocker: MockerFixture) -> None:
+    def test_init_handles_uv_failure(
+        self,
+        tmp_path: Path,
+        mocker: MockerFixture,
+    ) -> None:
         script_path = tmp_path / "script.py"
 
         def fake_run(args: Sequence[Any]) -> None:
@@ -165,7 +185,9 @@ class TestInit:
 
         assert result.exit_code == 42
 
-    def test_init_no_stamp_skips_timestamp(self, tmp_path: Path, mocker: MockerFixture) -> None:
+    def test_init_no_stamp_skips_timestamp(
+        self, tmp_path: Path, mocker: MockerFixture
+    ) -> None:
         script_path = tmp_path / "test-script.py"
 
         def fake_run(args: Sequence[Any]) -> None:
@@ -254,7 +276,9 @@ class TestFix:
         assert "[tool.uv]" in content
         assert "exclude-newer" in content
         # Should call uv sync --script <path> --upgrade
-        mock_run.assert_called_once_with(["uv", "sync", "--script", script_path, "--upgrade"])
+        mock_run.assert_called_once_with(
+            ["uv", "sync", "--script", script_path, "--upgrade"]
+        )
 
     def test_fix_no_stamp_skips_timestamp(self, tmp_path: Path) -> None:
         script_path = tmp_path / "script.py"
@@ -323,9 +347,15 @@ class TestStamp:
         assert "[tool.uv]" in content
         assert "exclude-newer" in content
         # Should call uv sync --script <path> --upgrade
-        mock_run.assert_called_once_with(["uv", "sync", "--script", script_path, "--upgrade"])
+        mock_run.assert_called_once_with(
+            ["uv", "sync", "--script", script_path, "--upgrade"]
+        )
 
-    def test_stamp_updates_existing_timestamp(self, tmp_path: Path, mocker: MockerFixture) -> None:
+    def test_stamp_updates_existing_timestamp(
+        self,
+        tmp_path: Path,
+        mocker: MockerFixture,
+    ) -> None:
         script_path = tmp_path / "script.py"
         script_path.write_text(
             textwrap.dedent(
@@ -390,7 +420,11 @@ class TestStamp:
         assert result.exit_code == 1
         assert "unrecognized arguments" in result.stderr
 
-    def test_stamp_creates_metadata_if_missing(self, tmp_path: Path, mocker: MockerFixture) -> None:
+    def test_stamp_creates_metadata_if_missing(
+        self,
+        tmp_path: Path,
+        mocker: MockerFixture,
+    ) -> None:
         script_path = tmp_path / "script.py"
         script_path.write_text("print('hello')\n")
 
@@ -407,7 +441,11 @@ class TestStamp:
 
 
 class TestAddRemove:
-    def test_add_forwards_arguments(self, tmp_path: Path, mocker: MockerFixture) -> None:
+    def test_add_forwards_arguments(
+        self,
+        tmp_path: Path,
+        mocker: MockerFixture,
+    ) -> None:
         script_path = tmp_path / "script.py"
         script_path.write_text("print('hi')\n")
 
@@ -416,10 +454,16 @@ class TestAddRemove:
         run_uvrs("add", str(script_path), "requests", "--dev")
 
         assert mock_run.call_count == 2
-        mock_run.assert_any_call(["uv", "add", "--script", script_path, "requests", "--dev"])
+        mock_run.assert_any_call(
+            ["uv", "add", "--script", script_path, "requests", "--dev"]
+        )
         mock_run.assert_any_call(["uv", "sync", "--script", script_path])
 
-    def test_add_allows_no_dependencies(self, tmp_path: Path, mocker: MockerFixture) -> None:
+    def test_add_allows_no_dependencies(
+        self,
+        tmp_path: Path,
+        mocker: MockerFixture,
+    ) -> None:
         script_path = tmp_path / "script.py"
         script_path.write_text("print('hi')\n")
 
@@ -432,7 +476,11 @@ class TestAddRemove:
         mock_run.assert_any_call(["uv", "add", "--script", script_path])
         mock_run.assert_any_call(["uv", "sync", "--script", script_path])
 
-    def test_remove_forwards_arguments(self, tmp_path: Path, mocker: MockerFixture) -> None:
+    def test_remove_forwards_arguments(
+        self,
+        tmp_path: Path,
+        mocker: MockerFixture,
+    ) -> None:
         script_path = tmp_path / "script.py"
         script_path.write_text("print('hi')\n")
 
@@ -444,7 +492,11 @@ class TestAddRemove:
         mock_run.assert_any_call(["uv", "remove", "--script", script_path, "requests"])
         mock_run.assert_any_call(["uv", "sync", "--script", script_path])
 
-    def test_remove_allows_no_dependencies(self, tmp_path: Path, mocker: MockerFixture) -> None:
+    def test_remove_allows_no_dependencies(
+        self,
+        tmp_path: Path,
+        mocker: MockerFixture,
+    ) -> None:
         script_path = tmp_path / "script.py"
         script_path.write_text("print('hi')\n")
 
@@ -498,14 +550,20 @@ class TestMainBehaviour:
     def test_main_no_handler_specified(self, mocker: MockerFixture) -> None:
         # Create a namespace without a handler attribute
         namespace = Namespace()
-        mocker.patch.object(uvrs.ArgumentParser, "parse_known_args", return_value=(namespace, []))
+        mocker.patch.object(
+            uvrs.ArgumentParser, "parse_known_args", return_value=(namespace, [])
+        )
 
         result = run_uvrs("init", check=False)
 
         assert result.exit_code == 1
         assert "No command specified" in result.stderr
 
-    def test_main_command_paths_to_handler(self, tmp_path: Path, mocker: MockerFixture) -> None:
+    def test_main_command_paths_to_handler(
+        self,
+        tmp_path: Path,
+        mocker: MockerFixture,
+    ) -> None:
         script_path = tmp_path / "script.py"
 
         def fake_run(args: Sequence[Any]) -> None:
@@ -719,7 +777,10 @@ class TestIntegration:
         # Original code should be preserved
         assert "print('hello world')" in content
 
-    def test_fix_creates_metadata_for_plain_script_integration(self, tmp_path: Path) -> None:
+    def test_fix_creates_metadata_for_plain_script_integration(
+        self,
+        tmp_path: Path,
+    ) -> None:
         """Test that fix can add metadata to a plain Python script with real uv."""
         script_path = tmp_path / "plain-script.py"
         script_path.write_text("#!/usr/bin/env python\nprint('hello world')\n")
@@ -745,7 +806,9 @@ class TestHelpers:
 
         uvrs.run_script(["script.py", "--flag"])
 
-        mock_execvp.assert_called_once_with("uv", ["uv", "run", "--script", "script.py", "--flag"])
+        mock_execvp.assert_called_once_with(
+            "uv", ["uv", "run", "--script", "script.py", "--flag"]
+        )
 
     def test_run_uv_command_success(self, mocker: MockerFixture) -> None:
         mock_print = mocker.patch("uvrs.print")
