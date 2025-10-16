@@ -1,12 +1,10 @@
 # uvrs
 
-This program is meant to be used in a shebang line, like this:
+A tool for managing uv scripts more easily.
 
-```python
-#!/usr/bin/env uvrs
-```
+This is `uv run --script`, `uv add --script`, and `uv remove --script` rolled into one, with calls to `uv sync --script` automatically made to minimize unhappy surprises with the automatically-managed virtual environment.
 
-Unlike the shebang line [recommended by uv's documentation][uv shebang], the above shebang does not rely on the non-standard `-S` option (see [uv issue 11876][11876]).
+Unlike `uv`, `uvrs` adds a shebang line, sets an executable bit, and uses timestamp-pins requirements by default.
 
 
 ## Installation
@@ -29,8 +27,16 @@ If you need to run a script, use `uv run` for that.
 
 The `uvrs` command can *also* be used to:
 
-1. Create new uv scripts with a `uvrs` shebang line
-2. Update existing uv scripts to use a `uvrs` shebang line
+1. Create new uv scripts with a `uvrs` shebang line and `exclude-newer` timestamp
+2. Update existing uv scripts to use a `uvrs` shebang line and `exclude-newer` timestamp
+
+This is the shebang line `uvrs` uses:
+
+```python
+#!/usr/bin/env uvrs
+```
+
+Unlike the shebang line [recommended by uv's documentation][uv shebang], the above shebang does not rely on the non-standard `-S` option (see [uv issue 11876][11876]).
 
 
 ## Creating new uv scripts
