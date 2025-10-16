@@ -38,25 +38,58 @@ uv tool install -p 3.14 uvrs
 That will install `uvrs` using Python 3.14 (for nicely colorized help text).
 
 
-## Primary Usage
+## What each command does
 
-The primary purpose of the `uvrs` command is to accept a filename to be run as a uv script.
+Here's what `uvrs` does under the hood, compared to the equivalent `uv` workflow:
 
-The `uvrs` command is not designed to run a script on its own.
-If you need to run a script, use `uv run` for that.
+### `uvrs init <path>`
 
-The `uvrs` command can *also* be used to:
+This is equivalent to:
 
-1. Create new uv scripts with a `uvrs` shebang line and `exclude-newer` timestamp
-2. Update existing uv scripts to use a `uvrs` shebang line and `exclude-newer` timestamp
-
-This is the shebang line `uvrs` uses:
-
-```python
-#!/usr/bin/env uvrs
+```bash
+uv init --script <path>
+# Add #!/usr/bin/env uvrs shebang
+# Add exclude-newer timestamp to metadata
+chmod +x <path>
 ```
 
-Unlike the shebang line [recommended by uv's documentation][uv shebang], the above shebang does not rely on the non-standard `-S` option (see [uv issue 11876][11876]).
+### `uvrs fix <path>`
+
+This is equivalent to:
+
+```bash
+# Update shebang to #!/usr/bin/env uvrs
+# Add exclude-newer timestamp if missing
+uv sync --script <path> --upgrade
+chmod +x <path>
+```
+
+### `uvrs add <path> <package>`
+
+This is equivalent to:
+
+```bash
+uv add --script <path> <package>
+uv sync --script <path>
+```
+
+### `uvrs remove <path> <package>`
+
+This is equivalent to:
+
+```bash
+uv remove --script <path> <package>
+uv sync --script <path>
+```
+
+### `uvrs stamp <path>`
+
+This is equivalent to:
+
+```bash
+# Update exclude-newer timestamp to current time
+uv sync --script <path> --upgrade
+```
 
 
 ## Creating new uv scripts
