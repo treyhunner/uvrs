@@ -41,13 +41,18 @@ To initialize a new uv script with a `uvrs` shebang line use the `init` command:
 uvrs init ~/bin/my-script --python 3.12
 ```
 
-This will create the file `~/bin/my-script` using `uv init --script ~/bin/my-script --python 3.12` and then add an appropriate shebang line to the beginning of the script:
+This will create the file `~/bin/my-script` using `uv init --script ~/bin/my-script --python 3.12` and then add an appropriate shebang line to the beginning of the script.
+
+By default, `uvrs init` also adds an `exclude-newer` timestamp to improve reproducibility:
 
 ```python
 #!/usr/bin/env uvrs
 # /// script
 # requires-python = ">=3.12"
 # dependencies = []
+#
+# [tool.uv]
+# exclude-newer = "2025-10-15T20:30:45Z"
 # ///
 
 
@@ -59,22 +64,53 @@ if __name__ == "__main__":
     main()
 ```
 
+To skip adding the timestamp, use `--no-stamp`:
 
-## Updating existing uv scripts
+```console
+uvrs init ~/bin/my-script --no-stamp
+```
 
-To update an existing uv script to use the `uvrs` shebang, use the `fix` command:
+
+## Updating existing scripts
+
+To update an existing Python script to use the `uvrs` shebang, use the `fix` command:
 
 ```console
 uvrs fix ~/bin/my-script
 ```
 
-If the file does not yet have a shebang line, this shebang line will be added:
+This command:
+
+1. Updates the shebang to `#!/usr/bin/env uvrs`
+2. Adds PEP 723 metadata with an `exclude-newer` timestamp (if not present)
+3. Runs `uv sync --script --upgrade` to ensure the environment is up to date
+
+For example, a plain Python script like:
+
+```python
+#!/usr/bin/env python
+print("Hello!")
+```
+
+Will be transformed to:
 
 ```python
 #!/usr/bin/env uvrs
+# /// script
+# dependencies = []
+#
+# [tool.uv]
+# exclude-newer = "2025-10-16T00:25:00Z"
+# ///
+
+print("Hello!")
 ```
 
-If the file being fixed already has a shebang line which uses `uv run`, the shebang will be updated to use `uvrs` instead.
+To skip adding the timestamp and metadata, use `--no-stamp`:
+
+```console
+uvrs fix ~/bin/my-script --no-stamp
+```
 
 
 ## Managing dependencies
@@ -98,6 +134,22 @@ uvrs remove ~/bin/my-script 'rich'
 
 This runs `uv remove --script ~/bin/my-script 'rich'` and then
 `uv sync --script ~/bin/my-script` to keep the resolved environment up to date.
+
+
+## Updating timestamps and upgrading dependencies
+
+To update the `exclude-newer` timestamp and upgrade all dependencies to the latest versions allowed by your constraints, use the `stamp` command:
+
+```console
+uvrs stamp ~/bin/my-script
+```
+
+This command:
+
+1. Updates the `exclude-newer` field in the script's `[tool.uv]` section to the current UTC timestamp
+2. Runs `uv sync --script --upgrade` to upgrade dependencies and rebuild the environment
+
+The `exclude-newer` field limits package versions to those published before the specified timestamp, which [improves reproducibility](https://docs.astral.sh/uv/guides/scripts/#improving-reproducibility) by preventing unexpected updates.
 
 
 ## The goal
