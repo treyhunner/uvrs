@@ -453,11 +453,9 @@ class TestAddRemove:
 
         run_uvrs("add", str(script_path), "requests", "--dev")
 
-        assert mock_run.call_count == 2
-        mock_run.assert_any_call(
+        mock_run.assert_called_once_with(
             ["uv", "add", "--script", script_path, "requests", "--dev"]
         )
-        mock_run.assert_any_call(["uv", "sync", "--script", script_path])
 
     def test_add_allows_no_dependencies(
         self,
@@ -472,9 +470,7 @@ class TestAddRemove:
         result = run_uvrs("add", str(script_path))
 
         assert result.exit_code == 0
-        assert mock_run.call_count == 2
-        mock_run.assert_any_call(["uv", "add", "--script", script_path])
-        mock_run.assert_any_call(["uv", "sync", "--script", script_path])
+        mock_run.assert_called_once_with(["uv", "add", "--script", script_path])
 
     def test_remove_forwards_arguments(
         self,
@@ -488,9 +484,9 @@ class TestAddRemove:
 
         run_uvrs("remove", str(script_path), "requests")
 
-        assert mock_run.call_count == 2
-        mock_run.assert_any_call(["uv", "remove", "--script", script_path, "requests"])
-        mock_run.assert_any_call(["uv", "sync", "--script", script_path])
+        mock_run.assert_called_once_with(
+            ["uv", "remove", "--script", script_path, "requests"]
+        )
 
     def test_remove_allows_no_dependencies(
         self,
@@ -505,9 +501,7 @@ class TestAddRemove:
         result = run_uvrs("remove", str(script_path))
 
         assert result.exit_code == 0
-        assert mock_run.call_count == 2
-        mock_run.assert_any_call(["uv", "remove", "--script", script_path])
-        mock_run.assert_any_call(["uv", "sync", "--script", script_path])
+        mock_run.assert_called_once_with(["uv", "remove", "--script", script_path])
 
     def test_add_missing_script_errors(self, tmp_path: Path) -> None:
         script_path = tmp_path / "missing.py"
@@ -807,7 +801,7 @@ class TestHelpers:
         uvrs.run_script(["script.py", "--flag"])
 
         mock_execvp.assert_called_once_with(
-            "uv", ["uv", "run", "--script", "script.py", "--flag"]
+            "uv", ["uv", "run", "--exact", "--script", "script.py", "--flag"]
         )
 
     def test_run_uv_command_success(self, mocker: MockerFixture) -> None:

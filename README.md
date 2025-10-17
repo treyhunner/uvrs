@@ -15,7 +15,7 @@ While `uv` has excellent support for [inline script metadata (PEP 723)][PEP 723]
 
 2. **No executable bit**: `uv init --script` creates files that aren't executable by default, requiring a manual `chmod +x`
 
-3. **Inconsistent syncing**: After `uv add --script` or `uv remove --script`, the virtual environment isn't synced - running the script *may* implicitly sync new packages, but removed packages always stay installed until you manually run `uv sync --script`
+3. **Inconsistent syncing**: `uv run --script` is deliberately inexact by default. It *may* implicitly sync some changes, but doesn't guarantee that the installed dependencies match the virtual environment consistently.
 
 4. **No reproducibility by default**: Scripts don't include `exclude-newer` timestamps, so running the same script weeks later may use different package versions, breaking reproducibility
 
@@ -23,7 +23,7 @@ While `uv` has excellent support for [inline script metadata (PEP 723)][PEP 723]
 
 - **Portable shebang** that works everywhere: `#!/usr/bin/env uvrs`
 - **Executable by default** for new and fixed scripts
-- **Automatic syncing** after add/remove operations
+- **Consistent syncing** via `uv run --exact --script` which ensures the environment always matches metadata
 - **Reproducible by default** with automatic `exclude-newer` timestamps
 
 
@@ -70,7 +70,6 @@ This is equivalent to:
 
 ```bash
 uv add --script <path> <package>
-uv sync --script <path>
 ```
 
 ### `uvrs remove <path> <package>`
@@ -79,7 +78,6 @@ This is equivalent to:
 
 ```bash
 uv remove --script <path> <package>
-uv sync --script <path>
 ```
 
 ### `uvrs stamp <path>`
@@ -182,17 +180,13 @@ To add a new dependency:
 uvrs add ~/bin/my-script 'rich'
 ```
 
-This runs `uv add --script ~/bin/my-script 'rich'` followed by
-`uv sync --script ~/bin/my-script`, so the dependency is installed immediately.
-
-To remove a new dependency:
+To remove a dependency:
 
 ```console
 uvrs remove ~/bin/my-script 'rich'
 ```
 
-This runs `uv remove --script ~/bin/my-script 'rich'` and then
-`uv sync --script ~/bin/my-script` to keep the resolved environment up to date.
+The environment will sync automatically the next time you run the script (uvrs uses `uv run --exact` which ensures the environment matches the metadata exactly).
 
 
 ## Updating timestamps and upgrading dependencies
