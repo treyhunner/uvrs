@@ -54,8 +54,8 @@ def run_uv_command(args: CommandArgs) -> None:
 
 
 def run_script(args: Sequence[str]) -> None:
-    """Delegate execution to ``uv run --script`` replacing the current process."""
-    execvp("uv", ["uv", "run", "--script", *args])
+    """Delegate execution to ``uv run --exact --script`` replacing the current process."""
+    execvp("uv", ["uv", "run", "--exact", "--script", *args])
 
 
 # ---------------------------------------------------------------------------
@@ -234,13 +234,11 @@ def handle_fix(args: Namespace, extras: Sequence[str]) -> None:
 def handle_add(args: Namespace, extras: Sequence[str]) -> None:
     """Forward to ``uv add --script`` with any additional arguments."""
     run_uv_command(["uv", "add", "--script", args.path, *extras])
-    run_uv_command(["uv", "sync", "--script", args.path])
 
 
 def handle_remove(args: Namespace, extras: Sequence[str]) -> None:
     """Forward to ``uv remove --script`` with any additional arguments."""
     run_uv_command(["uv", "remove", "--script", args.path, *extras])
-    run_uv_command(["uv", "sync", "--script", args.path])
 
 
 def handle_stamp(args: Namespace, extras: Sequence[str]) -> None:
