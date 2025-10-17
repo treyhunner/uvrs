@@ -2,9 +2,7 @@
 
 A tool for managing uv scripts more easily.
 
-This is `uv run --script`, `uv add --script`, and `uv remove --script` rolled into one, with calls to `uv sync --script` automatically made to minimize unhappy surprises with the automatically-managed virtual environment.
-
-Unlike `uv`, `uvrs` adds a shebang line, sets an executable bit, and uses timestamp-pins requirements by default.
+Unlike `uv`, `uvrs` adds a shebang line, sets an executable bit, runs scripts with exact dependency syncing, and timestamp-pins requirements by default.
 
 
 ## Why this exists
@@ -88,6 +86,17 @@ This is equivalent to:
 # Update exclude-newer timestamp to current time
 uv sync --script <path> --upgrade
 ```
+
+### `uvrs <path>`
+
+This is equivalent to:
+
+```bash
+uv run --exact --script <path>
+```
+
+Using `--exact` guarantees the managed virtual environment always matches the script's inline metadata before execution.
+This means any dependency changes, including those introduced by `uvrs add` or `uvrs remove`, are respected the next time you run the script.
 
 
 ## Creating new uv scripts
