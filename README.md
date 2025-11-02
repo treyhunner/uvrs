@@ -9,13 +9,19 @@ Unlike `uv`, `uvrs` adds a shebang line, sets an executable bit, runs scripts wi
 
 While `uv` has excellent support for [inline script metadata (PEP 723)][PEP 723], there are several rough edges when managing scripts:
 
-1. **Non-portable shebang**: The [recommended shebang][uv shebang] uses `#!/usr/bin/env -S uv run --script`, which relies on the non-standard `-S` flag that doesn't work on some systems ([uv issue #11876][11876])
+1. **Non-portable shebang**:
+   The [recommended shebang][uv shebang] uses `#!/usr/bin/env -S uv run --script`, which relies on the non-standard `-S` flag that doesn't work on some systems ([uv issue #11876][11876]) and uv does not currently have a single command shortcut to run a script ([uv issue #16241][16241]).
 
-2. **No executable bit**: `uv init --script` creates files that aren't executable by default, requiring a manual `chmod +x`
+2. **No executable bit**:
+   `uv init --script` creates files that aren't executable by default, requiring a manual `chmod +x`.
 
-3. **Inconsistent syncing**: `uv run --script` is deliberately inexact by default. It *may* implicitly sync some changes, but doesn't guarantee that the installed dependencies match the virtual environment consistently.
+3. **Inconsistent syncing**:
+   `uv run --script` is deliberately inexact by default ([uv issue #16334][16334]).
+   It *may* implicitly sync some changes, but doesn't guarantee that the installed dependencies match the virtual environment consistently.
 
-4. **No reproducibility by default**: Scripts don't include `exclude-newer` timestamps, so running the same script weeks later may use different package versions, breaking reproducibility
+4. **No reproducibility by default**:
+   Scripts don't include `exclude-newer` timestamps, so running the same script weeks later may use different package versions, breaking reproducibility.
+   There is also no easy command for adding or updating the `exclude-newer` timestamp in a script ([uv issue #13123][13123])
 
 `uvrs` addresses all of these issues:
 
@@ -220,8 +226,25 @@ Eventually, I would like to see a similar tool [integrated into uv][16241].
 
 Until that time, I plan to maintain this uvrs tool.
 
+### How uv could make uvrs largely unnecessary
+
+Using uv scripts with inline-metadata already feels close to magical.
+From my viewpoint, uvrs mainly bridges three gaps that I hope uv will eventually close:
+
+1. **Exact execution by default**:
+   Update the documentation to recommend `uv run --exact --script` instead of `uv run --script` in script shebang lines ([uv issue #16334][16334])
+
+2. **Script bootstrapping**:
+   Update `uv init --script` to add a shebang and set an executable bit.
+   The shebang would either relying on `/usr/bin/env -S` ([uv issue #11876][11876]) or use a new dedicated command ([uv issue #16241][16241]).
+
+3. **Timestamp management**:
+   Add a command to more easily "soft pin" to the current time using `exclude-newer`: ideally `uv timestamp --script` or even a general `uv config` ([uv issue #13123][13123]).
+
 
 [PEP 723]: https://peps.python.org/pep-0723/
 [uv shebang]: https://docs.astral.sh/uv/guides/scripts/#using-a-shebang-to-create-an-executable-file
 [11876]: https://github.com/astral-sh/uv/issues/11876
+[16334]: https://github.com/astral-sh/uv/issues/16334
 [16241]: https://github.com/astral-sh/uv/issues/16241
+[13123]: https://github.com/astral-sh/uv/issues/13123
