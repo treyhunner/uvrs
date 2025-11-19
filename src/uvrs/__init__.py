@@ -211,8 +211,13 @@ def handle_fix(args: Namespace, extras: Sequence[str]) -> None:
     no_stamp = args.no_stamp
 
     content = path.read_text()
+
     if content.startswith("#!"):
-        new_content = "\n".join(["#!/usr/bin/env uvrs", *content.splitlines()[1:]])
+        lines = content.splitlines()[1:]
+        new_content = "\n".join(["#!/usr/bin/env uvrs", *lines])
+        if content.endswith("\n"):
+            # Preserve trailing newline
+            new_content += "\n"
     else:
         new_content = f"#!/usr/bin/env uvrs\n{content}"
     path.write_text(new_content)
