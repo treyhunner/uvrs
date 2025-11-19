@@ -817,6 +817,147 @@ class TestIntegration:
         # Original code should be preserved
         assert "print('hello world')" in content
 
+    def test_python_with_real_uv(self, tmp_path: Path) -> None:
+        """Test uvrs python runs commands in the script's environment."""
+        script_path = tmp_path / "python-test.py"
+
+        # Create a script with a dependency
+        run_uvrs("init", str(script_path))
+        run_uvrs("add", str(script_path), "rich")
+
+        # Use uvrs python to check if rich is importable
+        result = run_uvrs(
+            "python",
+            str(script_path),
+            "-c",
+            "import rich; print('SUCCESS')",
+        )
+
+        assert result.exit_code == 0
+        # Should be able to import rich from the script's environment
+        assert "SUCCESS" in result.stdout
+
+
+class TestPython:
+    def test_python_runs_script_python(
+        self,
+        tmp_path: Path,
+        mocker: MockerFixture,
+    ) -> None:
+        script_path = tmp_path / "script.py"
+        script_path.write_text("print('hi')\n")
+
+        # Mock uv python find to return a fake Python path
+        fake_python = tmp_path / "venv" / "bin" / "python3"
+        mock_find = mocker.patch(
+            "uvrs.subprocess.run",
+            side_effect=[
+                # First call: uv python find --script
+                mocker.Mock(stdout=str(fake_python), returncode=0),
+                # Second call: actual python execution
+                mocker.Mock(returncode=0),
+            ],
+        )
+
+        result = run_uvrs("python", str(script_path), "-c", "print('test')")
+
+        assert result.exit_code == 0
+        # Should call uv python find first
+        assert mock_find.call_args_list[0][0][0] == [
+            "uv",
+            "python",
+            "find",
+            "--script",
+            str(script_path),
+        ]
+        # Then should call the python executable with the args
+        assert mock_find.call_args_list[1][0][0] == [
+            str(fake_python),
+            "-c",
+            "print('test')",
+        ]
+
+    def test_python_allows_no_extra_args(
+        self,
+        tmp_path: Path,
+        mocker: MockerFixture,
+    ) -> None:
+        script_path = tmp_path / "script.py"
+        script_path.write_text("print('hi')\n")
+
+        fake_python = tmp_path / "venv" / "bin" / "python3"
+        mock_find = mocker.patch(
+            "uvrs.subprocess.run",
+            side_effect=[
+                mocker.Mock(stdout=str(fake_python), returncode=0),
+                mocker.Mock(returncode=0),
+            ],
+        )
+
+        result = run_uvrs("python", str(script_path))
+
+        assert result.exit_code == 0
+        # Should call python with no extra args
+        assert mock_find.call_args_list[1][0][0] == [str(fake_python)]
+
+    def test_python_forwards_all_arguments(
+        self,
+        tmp_path: Path,
+        mocker: MockerFixture,
+    ) -> None:
+        script_path = tmp_path / "script.py"
+        script_path.write_text("print('hi')\n")
+
+        fake_python = tmp_path / "venv" / "bin" / "python3"
+        mock_find = mocker.patch(
+            "uvrs.subprocess.run",
+            side_effect=[
+                mocker.Mock(stdout=str(fake_python), returncode=0),
+                mocker.Mock(returncode=0),
+            ],
+        )
+
+        result = run_uvrs("python", str(script_path), "-m", "ast", "dump", "test.py")
+
+        assert result.exit_code == 0
+        # Should forward all args to python
+        assert mock_find.call_args_list[1][0][0] == [
+            str(fake_python),
+            "-m",
+            "ast",
+            "dump",
+            "test.py",
+        ]
+
+    def test_python_missing_script_errors(self, tmp_path: Path) -> None:
+        script_path = tmp_path / "missing.py"
+
+        result = run_uvrs("python", str(script_path), "-c", "print('hi')", check=False)
+
+        assert result.exit_code == 2
+        assert "does not exist" in result.stderr
+
+    def test_python_handles_execution_failure(
+        self,
+        tmp_path: Path,
+        mocker: MockerFixture,
+    ) -> None:
+        script_path = tmp_path / "script.py"
+        script_path.write_text("print('hi')\n")
+
+        fake_python = tmp_path / "venv" / "bin" / "python3"
+        mocker.patch(
+            "uvrs.subprocess.run",
+            side_effect=[
+                mocker.Mock(stdout=str(fake_python), returncode=0),
+                subprocess.CalledProcessError(42, ["python"]),
+            ],
+        )
+
+        result = run_uvrs("python", str(script_path), "-c", "bad code", check=False)
+
+        assert result.exit_code == 42
+
 
 class TestHelpers:
     def test_run_script_invokes_execvp(self, mocker: MockerFixture) -> None:

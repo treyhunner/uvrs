@@ -263,6 +263,26 @@ def handle_stamp(args: Namespace, extras: Sequence[str]) -> None:
     run_uv_command(["uv", "sync", "--script", path, "--upgrade"])
 
 
+def handle_python(args: Namespace, extras: Sequence[str]) -> None:
+    """Run python in the context of the script's virtual environment."""
+    path: Path = args.path
+
+    # Get the Python executable for this script's environment
+    result = subprocess.run(
+        ["uv", "python", "find", "--script", str(path)],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    python_path = Path(result.stdout.removesuffix("\n"))
+
+    print(f"[bold cyan]→ uvrs executing:[/] {args_join([python_path, *extras])}")
+    try:
+        subprocess.run([str(python_path), *extras], check=True)
+    except subprocess.CalledProcessError as exc:  # pragma: no cover
+        raise SystemExit(exc.returncode) from None
+
+
 # ---------------------------------------------------------------------------
 # Parser / entrypoint
 # ---------------------------------------------------------------------------
@@ -332,6 +352,13 @@ def create_parser() -> ArgumentParser:
     )
     stamp_parser.add_argument("path", type=readable_path)
     stamp_parser.set_defaults(handler=handle_stamp, parser=stamp_parser)
+
+    python_parser = subparsers.add_parser(
+        "python",
+        help="Run python in the context of the script's virtual environment",
+    )
+    python_parser.add_argument("path", type=readable_path)
+    python_parser.set_defaults(handler=handle_python, parser=python_parser)
 
     return parser
 

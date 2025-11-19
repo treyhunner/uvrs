@@ -93,6 +93,22 @@ This is equivalent to:
 uv sync --script <path> --upgrade
 ```
 
+### `uvrs python <path> [args...]`
+
+This is equivalent to:
+
+```bash
+# Find the Python executable for the script's environment
+python_path=$(uv python find --script <path>)
+# Run the Python executable with the provided arguments
+$python_path [args...]
+```
+
+This allows you to run Python commands in the context of the script's virtual environment, such as:
+
+- `uvrs python <path>` to launch a Python REPL
+- `uvrs python <path> -m pdb <path>` to launch PDB
+
 ### `uvrs <path>`
 
 This is equivalent to:
