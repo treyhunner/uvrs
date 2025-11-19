@@ -323,6 +323,30 @@ class TestFix:
         assert "[tool.uv]" in content
         assert "exclude-newer" in content
 
+    def test_fix_preserves_trailing_newline(self, tmp_path: Path) -> None:
+        """Test that fix preserves trailing newline."""
+        script_path = tmp_path / "with-newline.py"
+        # Create a file with trailing newline
+        script_path.write_text("#!/usr/bin/env python\nprint('hello')\n")
+
+        run_uvrs("fix", str(script_path), "--no-stamp")
+
+        content = script_path.read_text()
+        assert content.endswith("\n"), "Trailing newline should be preserved"
+        assert content.startswith("#!/usr/bin/env uvrs\n")
+
+    def test_fix_handles_file_without_trailing_newline(self, tmp_path: Path) -> None:
+        """Test that fix handles files without trailing newline."""
+        script_path = tmp_path / "no-newline.py"
+        # Create a file without trailing newline
+        script_path.write_text("#!/usr/bin/env python\nprint('hello')")
+
+        run_uvrs("fix", str(script_path), "--no-stamp")
+
+        content = script_path.read_text()
+        assert not content.endswith("\n"), "Should not add trailing newline if missing"
+        assert content.startswith("#!/usr/bin/env uvrs\n")
+
 
 class TestStamp:
     def test_stamp_adds_timestamp(self, tmp_path: Path, mocker: MockerFixture) -> None:
