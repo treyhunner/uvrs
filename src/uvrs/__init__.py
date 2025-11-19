@@ -263,6 +263,47 @@ def handle_stamp(args: Namespace, extras: Sequence[str]) -> None:
     run_uv_command(["uv", "sync", "--script", path, "--upgrade"])
 
 
+def get_script_python_path(script_path: Path) -> Path:
+    """
+    Get the Python executable path for a script's virtual environment.
+
+    Uses `uv python find --script` to locate the correct Python interpreter.
+    """
+    result = subprocess.run(
+        ["uv", "python", "find", "--script", str(script_path)],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return Path(result.stdout.removesuffix("\n"))
+
+
+def handle_python(args: Namespace, extras: Sequence[str]) -> None:
+    """Run python in the context of the script's virtual environment."""
+    python_path = get_script_python_path(args.path)
+
+    print(f"[bold cyan]→ uvrs executing:[/] {args_join([python_path, *extras])}")
+    try:
+        subprocess.run([str(python_path), *extras], check=True)
+    except subprocess.CalledProcessError as exc:  # pragma: no cover
+        raise SystemExit(exc.returncode) from None
+
+
+def handle_pip(args: Namespace, extras: Sequence[str]) -> None:
+    """Run pip in the context of the script's virtual environment."""
+    if not extras:
+        fail(
+            "[bold red]error[/]: pip command requires a subcommand\n"
+            "Run [cyan]uvrs pip <script> --help[/] to see available commands"
+        )
+
+    python_path = get_script_python_path(args.path)
+
+    # Run uv pip with the script's Python
+    # The --python flag needs to come after the pip subcommand
+    run_uv_command(["uv", "pip", *extras, "--python", python_path])
+
+
 # ---------------------------------------------------------------------------
 # Parser / entrypoint
 # ---------------------------------------------------------------------------
@@ -332,6 +373,22 @@ def create_parser() -> ArgumentParser:
     )
     stamp_parser.add_argument("path", type=readable_path)
     stamp_parser.set_defaults(handler=handle_stamp, parser=stamp_parser)
+
+    python_parser = subparsers.add_parser(
+        "python",
+        help="Run python in the context of the script's virtual environment",
+        add_help=False,
+    )
+    python_parser.add_argument("path", type=readable_path)
+    python_parser.set_defaults(handler=handle_python, parser=python_parser)
+
+    pip_parser = subparsers.add_parser(
+        "pip",
+        help="Run pip in the context of the script's virtual environment",
+        add_help=False,
+    )
+    pip_parser.add_argument("path", type=readable_path)
+    pip_parser.set_defaults(handler=handle_pip, parser=pip_parser)
 
     return parser
 
