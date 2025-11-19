@@ -837,6 +837,96 @@ class TestIntegration:
         # Should be able to import rich from the script's environment
         assert "SUCCESS" in result.stdout
 
+    def test_pip_with_real_uv(self, tmp_path: Path) -> None:
+        """Test uvrs pip operates on the script's environment."""
+        script_path = tmp_path / "pip-test.py"
+
+        # Create a script with a dependency
+        run_uvrs("init", str(script_path))
+        run_uvrs("add", str(script_path), "rich")
+
+        # Use uvrs pip to list packages
+        result = run_uvrs("pip", str(script_path), "list")
+        assert result.exit_code == 0  # Command should succeed
+
+        # Use uvrs pip freeze
+        result = run_uvrs("pip", str(script_path), "freeze")
+        assert result.exit_code == 0  # Command should succeed
+
+
+class TestPip:
+    def test_pip_runs_uv_pip_with_python_flag(
+        self,
+        tmp_path: Path,
+        mocker: MockerFixture,
+    ) -> None:
+        script_path = tmp_path / "script.py"
+        script_path.write_text("print('hi')\n")
+
+        fake_python = tmp_path / "venv" / "bin" / "python3"
+        mock_find = mocker.patch(
+            "subprocess.run",
+            side_effect=[
+                mocker.Mock(stdout=str(fake_python), returncode=0),
+            ],
+        )
+        mock_uv = mocker.patch("uvrs.run_uv_command")
+
+        result = run_uvrs("pip", str(script_path), "list")
+
+        assert result.exit_code == 0
+        # Should find the Python path
+        assert mock_find.call_args_list[0][0][0] == [
+            "uv",
+            "python",
+            "find",
+            "--script",
+            str(script_path),
+        ]
+        # Should call uv pip with --python flag
+        mock_uv.assert_called_once_with(["uv", "pip", "list", "--python", fake_python])
+
+    def test_pip_forwards_multiple_arguments(
+        self,
+        tmp_path: Path,
+        mocker: MockerFixture,
+    ) -> None:
+        script_path = tmp_path / "script.py"
+        script_path.write_text("print('hi')\n")
+
+        fake_python = tmp_path / "venv" / "bin" / "python3"
+        mocker.patch(
+            "subprocess.run",
+            side_effect=[
+                mocker.Mock(stdout=str(fake_python), returncode=0),
+            ],
+        )
+        mock_uv = mocker.patch("uvrs.run_uv_command")
+
+        result = run_uvrs("pip", str(script_path), "show", "rich", "--verbose")
+
+        assert result.exit_code == 0
+        mock_uv.assert_called_once_with(
+            ["uv", "pip", "show", "rich", "--verbose", "--python", fake_python]
+        )
+
+    def test_pip_requires_subcommand(self, tmp_path: Path) -> None:
+        script_path = tmp_path / "script.py"
+        script_path.write_text("print('hi')\n")
+
+        result = run_uvrs("pip", str(script_path), check=False)
+
+        assert result.exit_code == 1
+        assert "pip command requires a subcommand" in result.stderr
+
+    def test_pip_missing_script_errors(self, tmp_path: Path) -> None:
+        script_path = tmp_path / "missing.py"
+
+        result = run_uvrs("pip", str(script_path), "list", check=False)
+
+        assert result.exit_code == 2
+        assert "does not exist" in result.stderr
+
 
 class TestPython:
     def test_python_runs_script_python(

@@ -109,6 +109,23 @@ This allows you to run Python commands in the context of the script's virtual en
 - `uvrs python <path>` to launch a Python REPL
 - `uvrs python <path> -m pdb <path>` to launch PDB
 
+### `uvrs pip <path> [args...]`
+
+This is equivalent to:
+
+```bash
+# Find the Python executable for the script's environment
+python_path=$(uv python find --script <path>)
+# Run uv pip with the script's Python
+uv pip [args...] --python $python_path
+```
+
+This allows you to use pip commands in the context of the script's virtual environment, such as:
+
+- `uvrs pip <path> list` to list installed packages
+- `uvrs pip <path> show <package>` to show package details
+- `uvrs pip <path> freeze` to output installed packages in requirements format
+
 ### `uvrs <path>`
 
 This is equivalent to:
@@ -234,6 +251,29 @@ This command:
 2. Runs `uv sync --script --upgrade` to upgrade dependencies and rebuild the environment
 
 The `exclude-newer` field limits package versions to those published before the specified timestamp, which [improves reproducibility](https://docs.astral.sh/uv/guides/scripts/#improving-reproducibility) by preventing unexpected updates.
+
+
+## Inspecting a script's environment
+
+To inspect what's installed in a script's environment or run Python commands in its context, use the `python` and `pip` commands.
+
+### Using `uvrs python`
+
+Run Python commands or a Python REPL in the script's environment:
+
+```console
+uvrs python ~/bin/my-script
+```
+
+### Using `uvrs pip`
+
+Inspect packages in the script's environment:
+
+```console
+uvrs pip ~/bin/my-script list
+```
+
+Note: For adding or removing dependencies, use `uvrs add` and `uvrs remove` instead, as they properly update the script's inline metadata.
 
 
 ## The goal
