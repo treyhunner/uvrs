@@ -850,7 +850,7 @@ class TestPython:
         # Mock uv python find to return a fake Python path
         fake_python = tmp_path / "venv" / "bin" / "python3"
         mock_find = mocker.patch(
-            "uvrs.subprocess.run",
+            "subprocess.run",
             side_effect=[
                 # First call: uv python find --script
                 mocker.Mock(stdout=str(fake_python), returncode=0),
@@ -887,7 +887,7 @@ class TestPython:
 
         fake_python = tmp_path / "venv" / "bin" / "python3"
         mock_find = mocker.patch(
-            "uvrs.subprocess.run",
+            "subprocess.run",
             side_effect=[
                 mocker.Mock(stdout=str(fake_python), returncode=0),
                 mocker.Mock(returncode=0),
@@ -910,7 +910,7 @@ class TestPython:
 
         fake_python = tmp_path / "venv" / "bin" / "python3"
         mock_find = mocker.patch(
-            "uvrs.subprocess.run",
+            "subprocess.run",
             side_effect=[
                 mocker.Mock(stdout=str(fake_python), returncode=0),
                 mocker.Mock(returncode=0),
@@ -947,7 +947,7 @@ class TestPython:
 
         fake_python = tmp_path / "venv" / "bin" / "python3"
         mocker.patch(
-            "uvrs.subprocess.run",
+            "subprocess.run",
             side_effect=[
                 mocker.Mock(stdout=str(fake_python), returncode=0),
                 subprocess.CalledProcessError(42, ["python"]),
@@ -971,7 +971,7 @@ class TestHelpers:
 
     def test_run_uv_command_success(self, mocker: MockerFixture) -> None:
         mock_print = mocker.patch("uvrs.print")
-        mock_run = mocker.patch("uvrs.subprocess.run")
+        mock_run = mocker.patch("subprocess.run")
         mock_run.return_value.returncode = 0
 
         uvrs.run_uv_command(["uv", "--version"])
@@ -982,7 +982,7 @@ class TestHelpers:
     def test_run_uv_command_failure(self, mocker: MockerFixture) -> None:
         mocker.patch("uvrs.print")
         mocker.patch(
-            "uvrs.subprocess.run",
+            "subprocess.run",
             side_effect=subprocess.CalledProcessError(5, ["uv", "bad"]),
         )
 
